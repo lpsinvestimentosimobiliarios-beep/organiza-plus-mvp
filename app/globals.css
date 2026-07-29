@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-sans: "Inter", "Segoe UI", Arial, system-ui, sans-serif;
+  background: #0a1835;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(33, 183, 166, 0.18), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(245, 158, 91, 0.16), transparent 34rem),
+    #0a1835;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: #0a1835;
+  background: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 92px);
+}
+
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(18, 51, 95, 0.28) transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  height: 7px;
+  width: 7px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(18, 51, 95, 0.28);
+  border-radius: 999px;
+}
+
+.field {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(18, 51, 95, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px 13px;
+  color: #0a1835;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field:focus {
+  border-color: rgba(33, 183, 166, 0.78);
+  box-shadow: 0 0 0 4px rgba(33, 183, 166, 0.15);
+}
+
+.tree-line {
+  position: absolute;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(33, 183, 166, 0.58), rgba(245, 158, 91, 0.38));
+}
+
+.demo-ribbon {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(245, 158, 91, 0.18),
+    rgba(245, 158, 91, 0.18) 8px,
+    rgba(255, 255, 255, 0.9) 8px,
+    rgba(255, 255, 255, 0.9) 16px
+  );
+}
