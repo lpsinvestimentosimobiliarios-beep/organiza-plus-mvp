@@ -11,7 +11,7 @@ export function generateLocalAssistantReply(message: string, data: AppData) {
   const expenses = totalExpenses(data);
 
   if (!data.profile) {
-    return "Estou em modo demonstrativo local. Crie uma conta demo para eu usar seus dados cadastrados neste aparelho.";
+    return "Estou em modo demonstrativo local. Crie uma conta para eu usar os dados cadastrados neste aparelho.";
   }
 
   if (data.debts.length === 0) {
@@ -19,7 +19,10 @@ export function generateLocalAssistantReply(message: string, data: AppData) {
   }
 
   if (text.includes("prior") || text.includes("pagar primeiro") || text.includes("qual dívida")) {
-    if (!next) return "Todas as dívidas cadastradas estão quitadas. O próximo passo é criar uma reserva e transformar o dinheiro liberado em uma meta.";
+    if (!next) {
+      return "Todas as dívidas cadastradas estão quitadas. O próximo passo é criar uma reserva e transformar o dinheiro liberado em uma meta.";
+    }
+
     return `Pelo seu plano atual, eu começaria por ${next.debt.name}. Motivo: ${next.reason} Com ${formatMoney(next.monthlyAllocated)} por mês, a previsão demonstrativa de quitação é ${formatMonthYear(next.finishDate)}.`;
   }
 

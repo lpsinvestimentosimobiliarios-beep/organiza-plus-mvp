@@ -716,7 +716,7 @@ export function OrganizaApp() {
               {view === "map" && <MapView data={data} updateData={updateData} onNavigate={setView} />}
               {view === "plan" && <PlanView data={data} updateData={updateData} />}
               {view === "calendar" && <CalendarView data={data} />}
-              {view === "assistant" && <AssistantView data={data} />}
+              {view === "assistant" && <AssistantViewV2 data={data} />}
               {view === "achievements" && <AchievementsView data={data} />}
               {view === "profile" && (
                 <ProfileView
@@ -2012,6 +2012,179 @@ function AssistantView({ data }: { data: AppData }) {
           placeholder="Pergunte sobre seu plano"
         />
         <AppButton type="submit" className="w-14 shrink-0 px-0" aria-label="Enviar mensagem">
+          <ArrowRight size={19} />
+        </AppButton>
+      </form>
+    </div>
+  );
+}
+
+function buildAssistantContext(data: AppData) {
+  const plan = buildPayoffPlan(data).slice(0, 5);
+
+  return {
+    profileName: data.profile?.name || null,
+    monthlyIncome: data.income.monthly,
+    incomeKind: data.income.kind,
+    payday: data.income.payday,
+    monthlyCapacity: paymentCapacity(data),
+    strategy: strategyLabel(data.strategy),
+    firstGoal: data.onboarding.firstGoal,
+    mainConcern: data.onboarding.mainConcern,
+    totals: {
+      expenses: totalExpenses(data),
+      remainingDebt: totalRemaining(data.debts),
+      paid: totalPaid(data.debts),
+      totalDebt: totalDebt(data.debts)
+    },
+    expenses: data.expenses.map((expense) => ({
+      name: expense.name,
+      amount: expense.amount,
+      dueDay: expense.dueDay,
+      essential: expense.essential
+    })),
+    debts: data.debts.map((debt) => ({
+      name: debt.name,
+      creditor: debt.creditor,
+      category: debt.category,
+      total: debt.total,
+      paid: debt.paid,
+      remaining: remainingDebt(debt),
+      minimumPayment: debt.minimumPayment,
+      interestRate: debt.interestRate,
+      dueDay: debt.dueDay,
+      urgent: debt.urgent,
+      notes: debt.notes || ""
+    })),
+    nextPlan: plan.map((item) => ({
+      debt: item.debt.name,
+      remaining: item.remaining,
+      monthlyAllocated: item.monthlyAllocated,
+      finishMonth: formatMonthYear(item.finishDate),
+      reason: item.reason
+    }))
+  };
+}
+
+function AssistantViewV2({ data }: { data: AppData }) {
+  const [messages, setMessages] = useState<AssistantMessage[]>([
+    {
+      role: "assistant",
+      text: "Sou o assistente do Organiza+. Quando a chave da OpenAI estiver instalada, respondo com IA real usando seu mapa financeiro. Se a IA estiver indisponível, continuo ajudando em modo local."
+    }
+  ]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [assistantMode, setAssistantMode] = useState<"local" | "openai" | "error">("local");
+
+  async function sendMessage(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || thinking) return;
+
+    const localReply = generateLocalAssistantReply(trimmed, data);
+    setInput("");
+    setThinking(true);
+    setMessages((previous) => [...previous, { role: "user", text: trimmed }]);
+
+    try {
+      const response = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          context: buildAssistantContext(data)
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        mode?: string;
+        reply?: string;
+      } | null;
+      const realAiReply = response.ok && payload?.mode === "openai" && payload.reply;
+      const reply = realAiReply ? payload.reply || localReply : localReply;
+
+      setAssistantMode(realAiReply ? "openai" : payload?.mode === "openai-error" ? "error" : "local");
+      setMessages((previous) => [...previous, { role: "assistant", text: reply }]);
+    } catch {
+      setAssistantMode("error");
+      setMessages((previous) => [...previous, { role: "assistant", text: localReply }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  const shortcuts = ["Qual dívida pagar primeiro?", "Quanto posso guardar?", "Crie uma mensagem para negociar"];
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[8px] border border-aqua/20 bg-aqua/10 p-4">
+        <div className="flex gap-3">
+          <Brain className="mt-1 shrink-0 text-aqua" size={22} />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-black">Assistente contextual</h2>
+              <Badge tone={assistantMode === "openai" ? "green" : assistantMode === "error" ? "orange" : "blue"}>
+                {assistantMode === "openai"
+                  ? "IA real ativa"
+                  : assistantMode === "error"
+                    ? "Modo local de segurança"
+                    : "Pronto para OpenAI"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm leading-5 text-ocean/75">
+              A chave fica protegida na Vercel. O usuário conversa pelo app, mas a consulta acontece no servidor.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="max-h-[460px] space-y-3 overflow-y-auto rounded-[8px] border border-ocean/8 bg-white p-4 shadow-sm app-scrollbar">
+        {messages.map((message, index) => (
+          <div
+            key={`${message.role}-${index}`}
+            className={cn(
+              "max-w-[86%] rounded-[8px] px-3 py-2 text-sm leading-6",
+              message.role === "assistant" ? "bg-mist text-ocean" : "ml-auto bg-ink text-white"
+            )}
+          >
+            {message.text}
+          </div>
+        ))}
+        {thinking && (
+          <div className="max-w-[86%] rounded-[8px] bg-mist px-3 py-2 text-sm font-bold text-ocean/70">
+            Pensando no seu plano...
+          </div>
+        )}
+      </section>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 app-scrollbar">
+        {shortcuts.map((shortcut) => (
+          <button
+            key={shortcut}
+            type="button"
+            disabled={thinking}
+            onClick={() => sendMessage(shortcut)}
+            className="shrink-0 rounded-[8px] border border-ocean/10 bg-white px-3 py-2 text-xs font-bold text-ocean disabled:opacity-50"
+          >
+            {shortcut}
+          </button>
+        ))}
+      </div>
+
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          sendMessage(input);
+        }}
+      >
+        <input
+          className="field"
+          value={input}
+          disabled={thinking}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Pergunte sobre seu plano"
+        />
+        <AppButton type="submit" disabled={thinking} className="w-14 shrink-0 px-0" aria-label="Enviar mensagem">
           <ArrowRight size={19} />
         </AppButton>
       </form>

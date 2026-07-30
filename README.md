@@ -90,6 +90,10 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
+Na Vercel, crie essas variaveis em **Environment Variables** e faca um novo deploy.
+
+Importante: a chave da OpenAI deve se chamar `OPENAI_API_KEY`. Nao use `NEXT_PUBLIC_OPENAI_API_KEY`, porque isso enviaria a chave para o navegador.
+
 ## Aviso importante
 
 O Organiza+ MVP oferece organizacao pessoal e estimativas demonstrativas. Ele nao substitui orientacao financeira, juridica, contabil ou negociacao oficial com credores.

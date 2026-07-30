@@ -1,10 +1,28 @@
 import { NextResponse } from "next/server";
 
+type AssistantResponse = {
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{
+      text?: string;
+    }>;
+  }>;
+};
+
 export async function POST(request: Request) {
   const { message, context } = (await request.json()) as {
     message?: string;
     context?: unknown;
   };
+
+  const userMessage = String(message || "").trim().slice(0, 1200);
+
+  if (!userMessage) {
+    return NextResponse.json({
+      mode: "local-demo",
+      reply: "Escreva uma pergunta para eu ajudar com seu plano."
+    });
+  }
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({
@@ -22,17 +40,9 @@ export async function POST(request: Request) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "Voce e o assistente do Organiza+. Responda em portugues do Brasil, com tom acolhedor e sem fazer promessas financeiras. Use os dados do contexto apenas para organizacao pessoal."
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ message, context })
-        }
-      ]
+      instructions:
+        "Você é o assistente do Organiza+. Responda em português do Brasil, com tom acolhedor, direto e sem julgamento. Ajude o usuário a organizar dívidas, prioridades, rotina financeira e próximos passos. Não faça promessas de resultado, não diga que é consultoria financeira, não recomende empréstimos como solução principal e não peça senhas bancárias. Use os dados do contexto apenas para organização pessoal.",
+      input: JSON.stringify({ message: userMessage, context })
     })
   });
 
@@ -40,17 +50,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         mode: "openai-error",
-        reply: "Nao consegui consultar a IA agora. O modo local continua disponivel."
+        reply: "Não consegui consultar a IA agora. O modo local continua disponível."
       },
       { status: 200 }
     );
   }
 
-  const payload = await response.json();
+  const payload = (await response.json()) as AssistantResponse;
   const reply =
     payload.output_text ||
     payload.output?.[0]?.content?.[0]?.text ||
-    "Recebi sua mensagem, mas nao consegui montar uma resposta completa.";
+    "Recebi sua mensagem, mas não consegui montar uma resposta completa.";
 
   return NextResponse.json({ mode: "openai", reply });
 }
