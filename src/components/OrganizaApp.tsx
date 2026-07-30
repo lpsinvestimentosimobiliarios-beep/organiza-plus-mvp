@@ -15,6 +15,7 @@ import {
   DollarSign,
   Download,
   Home,
+  Laptop,
   Leaf,
   Lock,
   LucideIcon,
@@ -23,8 +24,10 @@ import {
   Plus,
   RefreshCcw,
   Settings,
+  Share2,
   ShieldCheck,
   Sparkles,
+  Smartphone,
   Target,
   Trash2,
   Trophy,
@@ -67,6 +70,10 @@ import { cloudReady, loadCloudData, saveCloudData } from "@/lib/cloudSync";
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type AuthPayload = { name: string; email: string; password: string };
 type SyncStatus = "local" | "checking" | "online" | "saving" | "error";
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice?: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 
 type AssistantMessage = {
   role: "user" | "assistant";
@@ -265,12 +272,20 @@ function readableError(error: unknown) {
   return "Nao foi possivel concluir agora. Confira os dados e tente novamente.";
 }
 
+function appIsStandalone() {
+  if (typeof window === "undefined") return false;
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
+}
+
 export function OrganizaApp() {
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<AppData>(() => emptyData());
   const [authMode, setAuthMode] = useState<"opening" | "login" | "signup">("opening");
   const [view, setView] = useState<ViewKey>("today");
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [installHelpOpen, setInstallHelpOpen] = useState(false);
+  const [appInstalled, setAppInstalled] = useState(false);
   const [cloudUserId, setCloudUserId] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -366,13 +381,39 @@ export function OrganizaApp() {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
 
+    setAppInstalled(appIsStandalone());
+    const displayMode = window.matchMedia("(display-mode: standalone)") as MediaQueryList & {
+      addListener?: (listener: () => void) => void;
+      removeListener?: (listener: () => void) => void;
+    };
+    const displayModeHandler = () => setAppInstalled(appIsStandalone());
+    const installedHandler = () => {
+      setAppInstalled(true);
+      setInstallPrompt(null);
+      setInstallHelpOpen(false);
+    };
     const handler = (event: Event) => {
       event.preventDefault();
-      setInstallPrompt(event);
+      setInstallPrompt(event as InstallPromptEvent);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", installedHandler);
+    if (typeof displayMode.addEventListener === "function") {
+      displayMode.addEventListener("change", displayModeHandler);
+    } else {
+      displayMode.addListener?.(displayModeHandler);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
+      if (typeof displayMode.removeEventListener === "function") {
+        displayMode.removeEventListener("change", displayModeHandler);
+      } else {
+        displayMode.removeListener?.(displayModeHandler);
+      }
+    };
   }, []);
 
   const updateData = useCallback((updater: AppData | ((previous: AppData) => AppData)) => {
@@ -387,9 +428,25 @@ export function OrganizaApp() {
   );
 
   async function installApp() {
-    if (!installPrompt) return;
+    if (appInstalled) {
+      setInstallHelpOpen(true);
+      return;
+    }
+
+    if (!installPrompt) {
+      setInstallHelpOpen(true);
+      return;
+    }
+
     await installPrompt.prompt();
+    const choice = await installPrompt.userChoice?.catch(() => null);
     setInstallPrompt(null);
+    if (choice?.outcome === "accepted") {
+      setAppInstalled(true);
+      setInstallHelpOpen(false);
+      return;
+    }
+    setInstallHelpOpen(true);
   }
 
   async function handleAuthSubmit(payload: AuthPayload, mode: "login" | "signup") {
@@ -479,6 +536,8 @@ export function OrganizaApp() {
         cloudEnabled={cloudReady}
         busy={authBusy}
         error={authError}
+        installAvailable={!appInstalled}
+        onInstall={installApp}
         onSubmitAuth={handleAuthSubmit}
       />
     );
@@ -495,7 +554,8 @@ export function OrganizaApp() {
           data={data}
           view={view}
           earnedCount={earnedCount}
-          installAvailable={Boolean(installPrompt)}
+          installAvailable={!appInstalled}
+          appInstalled={appInstalled}
           cloudEnabled={cloudSyncEnabled}
           syncStatus={syncStatus}
           onInstall={installApp}
@@ -522,7 +582,8 @@ export function OrganizaApp() {
                   data={data}
                   updateData={updateData}
                   earnedCount={earnedCount}
-                  installAvailable={Boolean(installPrompt)}
+                  installAvailable={!appInstalled}
+                  appInstalled={appInstalled}
                   cloudEnabled={cloudSyncEnabled}
                   syncStatus={syncStatus}
                   onInstall={installApp}
@@ -535,6 +596,13 @@ export function OrganizaApp() {
         </div>
 
         <BottomNav active={view} onNavigate={setView} />
+        <InstallGuideModal
+          open={installHelpOpen}
+          canPrompt={Boolean(installPrompt)}
+          installed={appInstalled}
+          onInstall={installApp}
+          onClose={() => setInstallHelpOpen(false)}
+        />
       </div>
     </main>
   );
@@ -555,6 +623,97 @@ function LoadingScreen() {
   );
 }
 
+function InstallGuideModal({
+  open,
+  canPrompt,
+  installed,
+  onInstall,
+  onClose
+}: {
+  open: boolean;
+  canPrompt: boolean;
+  installed: boolean;
+  onInstall: () => void;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-ink/52 px-3 py-3 backdrop-blur-sm sm:place-items-center">
+      <motion.section
+        className="w-full max-w-[480px] rounded-[8px] bg-white p-4 text-ink shadow-soft"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 16 }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase text-aqua">Atalho do app</p>
+            <h2 className="mt-1 text-xl font-black">Instalar Organiza+</h2>
+            <p className="mt-2 text-sm leading-6 text-ocean/70">
+              {installed
+                ? "Este aparelho ja abriu o Organiza+ como aplicativo instalado."
+                : "Coloque o Organiza+ na tela inicial do celular ou como app no PC para abrir sem procurar o link."}
+            </p>
+          </div>
+          <IconButton label="Fechar instalacao" icon={X} onClick={onClose} />
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <InstallInstruction
+            icon={Smartphone}
+            title="Android"
+            description="No Chrome, toque em Instalar. Se nao aparecer, abra o menu de tres pontos e escolha Adicionar a tela inicial."
+          />
+          <InstallInstruction
+            icon={Share2}
+            title="iPhone"
+            description="No Safari, toque em Compartilhar e depois em Adicionar a Tela de Inicio."
+          />
+          <InstallInstruction
+            icon={Laptop}
+            title="PC"
+            description="No Chrome ou Edge, use o icone de instalar na barra de endereco. Depois voce pode fixar o app na barra de tarefas ou na area de trabalho."
+          />
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          {canPrompt && !installed && (
+            <AppButton onClick={onInstall} icon={<Download size={18} />}>
+              Instalar agora
+            </AppButton>
+          )}
+          <AppButton variant="secondary" onClick={onClose}>
+            Entendi
+          </AppButton>
+        </div>
+      </motion.section>
+    </div>
+  );
+}
+
+function InstallInstruction({
+  icon: Icon,
+  title,
+  description
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-[8px] bg-mist p-3">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] bg-white text-ocean">
+        <Icon size={19} />
+      </div>
+      <div>
+        <p className="font-black">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-ocean/66">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({
   data,
   mode,
@@ -562,6 +721,8 @@ function AuthScreen({
   cloudEnabled,
   busy,
   error,
+  installAvailable,
+  onInstall,
   onSubmitAuth
 }: {
   data: AppData;
@@ -570,6 +731,8 @@ function AuthScreen({
   cloudEnabled: boolean;
   busy: boolean;
   error: string;
+  installAvailable: boolean;
+  onInstall: () => void;
   onSubmitAuth: (payload: AuthPayload, mode: "login" | "signup") => void;
 }) {
   if (mode === "opening") {
@@ -623,6 +786,11 @@ function AuthScreen({
                 <AppButton variant="secondary" onClick={() => onModeChange("login")} icon={<Lock size={18} />}>
                   {cloudEnabled ? "Ja tenho conta" : "Ja tenho conta demo"}
                 </AppButton>
+                {installAvailable && (
+                  <AppButton variant="ghost" onClick={onInstall} icon={<Download size={18} />}>
+                    Instalar no celular ou PC
+                  </AppButton>
+                )}
               </div>
               {data.demoDataLoaded && (
                 <p className="rounded-[8px] bg-white/8 p-3 text-xs text-white/70">
@@ -978,6 +1146,7 @@ function AppHeader({
   view,
   earnedCount,
   installAvailable,
+  appInstalled,
   cloudEnabled,
   syncStatus,
   onInstall,
@@ -987,6 +1156,7 @@ function AppHeader({
   view: ViewKey;
   earnedCount: number;
   installAvailable: boolean;
+  appInstalled: boolean;
   cloudEnabled: boolean;
   syncStatus: SyncStatus;
   onInstall: () => void;
@@ -1021,7 +1191,7 @@ function AppHeader({
         </div>
         <div className="flex items-center gap-2">
           {installAvailable && (
-            <IconButton label="Instalar aplicativo" onClick={onInstall} icon={Download} />
+            <IconButton label="Instalar Organiza+" onClick={onInstall} icon={Download} />
           )}
           <button
             type="button"
@@ -1036,7 +1206,7 @@ function AppHeader({
       <div className="mt-3 flex items-center gap-2 overflow-x-auto app-scrollbar">
         <Badge tone={syncBadge.tone}>{syncBadge.label}</Badge>
         {data.demoDataLoaded && <Badge tone="green">Dados de exemplo ativos</Badge>}
-        <Badge tone="blue">PWA instalável</Badge>
+        <Badge tone={appInstalled ? "green" : "blue"}>{appInstalled ? "App instalado" : "Instale como app"}</Badge>
       </div>
     </header>
   );
@@ -1497,6 +1667,7 @@ function ProfileView({
   updateData,
   earnedCount,
   installAvailable,
+  appInstalled,
   cloudEnabled,
   syncStatus,
   onInstall,
@@ -1507,6 +1678,7 @@ function ProfileView({
   updateData: (updater: AppData | ((previous: AppData) => AppData)) => void;
   earnedCount: number;
   installAvailable: boolean;
+  appInstalled: boolean;
   cloudEnabled: boolean;
   syncStatus: SyncStatus;
   onInstall: () => void;
@@ -1592,8 +1764,13 @@ function ProfileView({
         <div className="mt-4 grid gap-3">
           {installAvailable && (
             <AppButton variant="secondary" onClick={onInstall} icon={<Download size={18} />}>
-              Instalar na tela inicial
+              Instalar na tela inicial ou PC
             </AppButton>
+          )}
+          {appInstalled && (
+            <div className="rounded-[8px] border border-leaf/20 bg-leaf/10 p-3 text-sm font-bold text-leaf">
+              Organiza+ ja esta instalado neste aparelho.
+            </div>
           )}
           <AppButton variant="secondary" onClick={() => exportData(data)} icon={<Download size={18} />}>
             Exportar backup
@@ -1623,7 +1800,7 @@ function ProfileView({
         <div className="mt-4 grid gap-3">
           <IntegrationRow icon={ShieldCheck} title="Supabase" description={supabaseDescription} />
           <IntegrationRow icon={Brain} title="OpenAI" description="Rota de assistente pronta. Sem chave, o app usa respostas demonstrativas locais." />
-          <IntegrationRow icon={Bell} title="PWA" description="Manifesto e service worker configurados para instalação." />
+          <IntegrationRow icon={Bell} title="PWA" description="Instalacao no celular e no PC com botao proprio e instrucoes manuais." />
         </div>
       </section>
     </div>
