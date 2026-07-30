@@ -771,48 +771,135 @@ function CelebrationOverlay({
 
 function ClappingMascot() {
   return (
-    <div className="relative mx-auto h-44 w-44">
+    <div className="relative mx-auto h-48 w-48">
       <motion.div
-        className="absolute left-1/2 top-2 h-36 w-32 -translate-x-1/2 rounded-[42%] border-4 border-ink bg-gradient-to-br from-aqua via-leaf to-amber shadow-glow"
-        animate={{ y: [0, -8, 0], rotate: [-1, 1.5, -1] }}
+        className="absolute inset-x-8 bottom-2 h-4 rounded-full bg-ink/10 blur-sm"
+        animate={{ scaleX: [1, 0.86, 1], opacity: [0.22, 0.12, 0.22] }}
+        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.svg
+        className="relative h-full w-full overflow-visible"
+        viewBox="0 0 220 220"
+        role="img"
+        aria-label="Bonequinho do Organiza+ batendo palma"
+        initial={{ scale: 0.94 }}
+        animate={{ scale: [0.94, 1, 0.94] }}
         transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
       >
-        <div className="absolute left-6 top-9 h-5 w-5 rounded-full bg-ink" />
-        <div className="absolute right-6 top-9 h-5 w-5 rounded-full bg-ink" />
-        <motion.div
-          className="absolute left-1/2 top-[4.2rem] h-5 w-12 -translate-x-1/2 rounded-b-full border-b-4 border-ink"
-          animate={{ scaleX: [1, 1.18, 1] }}
-          transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <div className="absolute left-8 top-14 h-2 w-2 rounded-full bg-white/85" />
-        <div className="absolute right-8 top-14 h-2 w-2 rounded-full bg-white/85" />
-      </motion.div>
+        <defs>
+          <linearGradient id="celebration-shirt" x1="57" x2="164" y1="122" y2="184" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#22B7A6" />
+            <stop offset="1" stopColor="#27B978" />
+          </linearGradient>
+          <linearGradient id="celebration-face" x1="78" x2="143" y1="43" y2="117" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#FFD2A7" />
+            <stop offset="1" stopColor="#F2A56C" />
+          </linearGradient>
+        </defs>
 
-      <motion.div
-        className="absolute left-0 top-20 h-16 w-10 origin-top-right rounded-full border-4 border-ink bg-aqua"
-        animate={{ rotate: [-22, 24, -22], x: [0, 16, 0] }}
-        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute right-0 top-20 h-16 w-10 origin-top-left rounded-full border-4 border-ink bg-leaf"
-        animate={{ rotate: [22, -24, 22], x: [0, -16, 0] }}
-        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute left-1/2 top-[5.9rem] h-8 w-8 -translate-x-1/2 rounded-full border-4 border-ink bg-white"
-        animate={{ scale: [0.82, 1.08, 0.82], opacity: [0.75, 1, 0.75] }}
-        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 left-10 h-9 w-10 rounded-[8px] border-4 border-ink bg-amber"
-        animate={{ y: [0, -4, 0] }}
-        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 right-10 h-9 w-10 rounded-[8px] border-4 border-ink bg-amber"
-        animate={{ y: [-2, 2, -2] }}
-        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
-      />
+        <motion.g animate={{ y: [0, -7, 0] }} transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}>
+          <ellipse cx="110" cy="199" rx="56" ry="9" fill="#071A3D" opacity="0.1" />
+
+          <path
+            d="M76 165 C68 177 66 189 70 197 L96 197 C97 184 96 174 93 165 Z"
+            fill="#071A3D"
+            stroke="#071A3D"
+            strokeWidth="5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M127 165 C123 177 123 187 126 197 L151 197 C156 187 153 176 144 165 Z"
+            fill="#071A3D"
+            stroke="#071A3D"
+            strokeWidth="5"
+            strokeLinejoin="round"
+          />
+
+          <path
+            d="M64 126 C72 106 91 98 110 98 C131 98 149 107 157 126 L168 181 C151 193 72 193 52 181 Z"
+            fill="url(#celebration-shirt)"
+            stroke="#071A3D"
+            strokeWidth="6"
+            strokeLinejoin="round"
+          />
+          <path d="M96 102 L124 102 L119 124 L101 124 Z" fill="#FFD2A7" stroke="#071A3D" strokeWidth="5" strokeLinejoin="round" />
+          <path d="M95 108 C101 115 119 115 125 108" fill="none" stroke="#071A3D" strokeWidth="4" strokeLinecap="round" />
+
+          <motion.g
+            style={{ transformOrigin: "78px 128px" }}
+            animate={{ rotate: [-14, 15, -14], x: [0, 10, 0], y: [0, -3, 0] }}
+            transition={{ duration: 0.48, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <path
+              d="M69 127 C54 134 44 148 41 162"
+              fill="none"
+              stroke="#071A3D"
+              strokeWidth="18"
+              strokeLinecap="round"
+            />
+            <path
+              d="M69 127 C54 134 44 148 41 162"
+              fill="none"
+              stroke="#22B7A6"
+              strokeWidth="11"
+              strokeLinecap="round"
+            />
+            <ellipse cx="54" cy="126" rx="15" ry="18" fill="#FFD2A7" stroke="#071A3D" strokeWidth="5" transform="rotate(-24 54 126)" />
+          </motion.g>
+
+          <motion.g
+            style={{ transformOrigin: "142px 128px" }}
+            animate={{ rotate: [14, -15, 14], x: [0, -10, 0], y: [0, -3, 0] }}
+            transition={{ duration: 0.48, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <path
+              d="M151 127 C166 134 176 148 179 162"
+              fill="none"
+              stroke="#071A3D"
+              strokeWidth="18"
+              strokeLinecap="round"
+            />
+            <path
+              d="M151 127 C166 134 176 148 179 162"
+              fill="none"
+              stroke="#27B978"
+              strokeWidth="11"
+              strokeLinecap="round"
+            />
+            <ellipse cx="166" cy="126" rx="15" ry="18" fill="#FFD2A7" stroke="#071A3D" strokeWidth="5" transform="rotate(24 166 126)" />
+          </motion.g>
+
+          <motion.g
+            animate={{ opacity: [0, 1, 0], scale: [0.7, 1.08, 0.7] }}
+            transition={{ duration: 0.48, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <path d="M103 132 L95 145" stroke="#F59E5B" strokeWidth="5" strokeLinecap="round" />
+            <path d="M117 132 L125 145" stroke="#F59E5B" strokeWidth="5" strokeLinecap="round" />
+            <path d="M110 127 L110 144" stroke="#F59E5B" strokeWidth="5" strokeLinecap="round" />
+          </motion.g>
+
+          <circle cx="69" cy="80" r="9" fill="#FFD2A7" stroke="#071A3D" strokeWidth="5" />
+          <circle cx="151" cy="80" r="9" fill="#FFD2A7" stroke="#071A3D" strokeWidth="5" />
+          <circle cx="110" cy="75" r="43" fill="url(#celebration-face)" stroke="#071A3D" strokeWidth="6" />
+          <path
+            d="M70 69 C72 41 93 25 118 29 C139 31 151 45 153 68 C138 58 121 56 100 62 C88 66 80 68 70 69 Z"
+            fill="#071A3D"
+            stroke="#071A3D"
+            strokeWidth="4"
+            strokeLinejoin="round"
+          />
+          <path d="M88 72 C93 68 99 68 104 72" fill="none" stroke="#071A3D" strokeWidth="4" strokeLinecap="round" />
+          <path d="M119 72 C124 68 130 68 135 72" fill="none" stroke="#071A3D" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="96" cy="83" r="5" fill="#071A3D" />
+          <circle cx="127" cy="83" r="5" fill="#071A3D" />
+          <path d="M101 99 C108 106 121 106 128 99" fill="none" stroke="#071A3D" strokeWidth="5" strokeLinecap="round" />
+          <circle cx="86" cy="96" r="5" fill="#F59E5B" opacity="0.55" />
+          <circle cx="137" cy="96" r="5" fill="#F59E5B" opacity="0.55" />
+
+          <path d="M82 193 L98 193" stroke="#F59E5B" strokeWidth="9" strokeLinecap="round" />
+          <path d="M128 193 L146 193" stroke="#F59E5B" strokeWidth="9" strokeLinecap="round" />
+        </motion.g>
+      </motion.svg>
     </div>
   );
 }
