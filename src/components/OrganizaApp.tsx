@@ -20,7 +20,6 @@ import {
   Lock,
   LucideIcon,
   Map,
-  MessageCircle,
   PiggyBank,
   Plus,
   RefreshCcw,
@@ -108,7 +107,6 @@ const navItems: Array<{ key: ViewKey; label: string; icon: LucideIcon }> = [
   { key: "today", label: "Hoje", icon: Home },
   { key: "map", label: "Mapa", icon: Map },
   { key: "plan", label: "Plano", icon: ClipboardCheck },
-  { key: "assistant", label: "IA", icon: Brain },
   { key: "profile", label: "Perfil", icon: UserRound }
 ];
 
@@ -2366,10 +2364,20 @@ function FloatingAssistant({
         <button
           type="button"
           onClick={open ? onClose : onOpen}
-          className="pointer-events-auto ml-auto grid h-14 w-14 place-items-center rounded-full bg-leaf text-white shadow-glow ring-4 ring-white transition hover:scale-[1.03]"
+          className={cn(
+            "pointer-events-auto ml-auto flex h-14 items-center justify-center rounded-full bg-leaf text-white shadow-glow ring-4 ring-white transition hover:scale-[1.03]",
+            open ? "w-14" : "gap-2 px-4"
+          )}
           aria-label={open ? "Fechar IA" : "Abrir IA"}
         >
-          {open ? <X size={24} /> : <MessageCircle size={25} />}
+          {open ? (
+            <X size={24} />
+          ) : (
+            <>
+              <Brain size={23} />
+              <span className="text-sm font-black">Chat IA</span>
+            </>
+          )}
         </button>
       </div>
     </>
@@ -2864,7 +2872,7 @@ function StrategyPicker({
 function BottomNav({ active, onNavigate }: { active: ViewKey; onNavigate: (view: ViewKey) => void }) {
   return (
     <nav className="fixed bottom-0 left-1/2 z-30 w-full max-w-[480px] -translate-x-1/2 border-t border-ocean/8 bg-white/96 px-2 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2 backdrop-blur">
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-4 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key || (active === "calendar" && item.key === "today") || (active === "achievements" && item.key === "profile");
