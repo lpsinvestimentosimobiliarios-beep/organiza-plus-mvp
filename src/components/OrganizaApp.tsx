@@ -33,9 +33,7 @@ import {
   Trophy,
   UserRound,
   WalletCards,
-  X,
-  ZoomIn,
-  ZoomOut
+  X
 } from "lucide-react";
 import type {
   AchievementId,
@@ -88,20 +86,21 @@ type AssistantMessage = {
   text: string;
 };
 
-type TreeNode = {
+type JourneyStepState = "done" | "current" | "future" | "locked";
+
+type JourneyStep = {
   id: string;
   label: string;
   sublabel: string;
-  x: number;
-  y: number;
   icon: LucideIcon;
-  tone: "root" | "blue" | "green" | "orange" | "danger";
+  tone: "ink" | "blue" | "green" | "orange" | "muted";
+  state: JourneyStepState;
   debtId?: string;
 };
 
-type TreeLine = {
-  from: string;
-  to: string;
+type JourneyPoint = {
+  x: number;
+  y: number;
 };
 
 const navItems: Array<{ key: ViewKey; label: string; icon: LucideIcon }> = [
@@ -1631,51 +1630,41 @@ function MapView({
   onNavigate: (view: ViewKey) => void;
 }) {
   const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
-  const [scale, setScale] = useState(0.88);
   const selectedDebt = data.debts.find((debt) => debt.id === selectedDebtId) ?? null;
-  const nodes = useMemo(() => buildTreeNodes(data), [data]);
-  const lines = useMemo(() => buildTreeLines(data), [data]);
+  const journeySteps = useMemo(() => buildJourneySteps(data), [data]);
+  const journeyHeight = Math.max(560, journeySteps.length * 116 + 56);
+  const journeyPoints = useMemo(() => buildJourneyPoints(journeySteps.length), [journeySteps.length]);
+  const journeyPath = useMemo(() => buildJourneyPath(journeyPoints), [journeyPoints]);
+  const completedSteps = journeySteps.filter((step) => step.state === "done").length;
 
   return (
     <div className="space-y-4">
       <section className="rounded-[8px] border border-ocean/8 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-aqua">Árvore financeira</p>
-            <h2 className="mt-1 text-xl font-black">Toque em uma dívida para ver o detalhe.</h2>
+            <p className="text-sm font-semibold text-aqua">Caminho financeiro</p>
+            <h2 className="mt-1 text-xl font-black">Avance por fases até quitar suas dívidas.</h2>
+            <p className="mt-1 text-sm text-ocean/60">Toque em uma dívida para ver o detalhe e registrar pagamentos.</p>
           </div>
-          <div className="flex gap-2">
-            <IconButton label="Aproximar" icon={ZoomIn} onClick={() => setScale((value) => Math.min(value + 0.08, 1.18))} />
-            <IconButton label="Afastar" icon={ZoomOut} onClick={() => setScale((value) => Math.max(value - 0.08, 0.68))} />
-          </div>
+          <Badge tone="green">{completedSteps}/{journeySteps.length}</Badge>
         </div>
       </section>
 
-      <section className="h-[560px] overflow-hidden rounded-[8px] border border-ocean/8 bg-[linear-gradient(180deg,#FFFFFF,#EDF5F8)] shadow-sm">
-        <motion.div
-          className="relative h-[620px] w-[760px]"
-          drag
-          dragConstraints={{ left: -280, right: 50, top: -120, bottom: 90 }}
-          style={{ scale }}
-          initial={{ x: -150, y: -24 }}
-        >
-          {lines.map((line) => {
-            const from = nodes.find((node) => node.id === line.from);
-            const to = nodes.find((node) => node.id === line.to);
-            if (!from || !to) return null;
-            return <TreeConnection key={`${line.from}-${line.to}`} from={from} to={to} />;
-          })}
-          {nodes.map((node) => (
-            <TreeNodeButton
-              key={node.id}
-              node={node}
-              active={node.debtId === selectedDebtId}
+      <section className="overflow-hidden rounded-[8px] border border-ocean/8 bg-[linear-gradient(180deg,#FFFFFF,#EEF7F7)] p-3 shadow-sm">
+        <div className="relative mx-auto w-full max-w-[360px]" style={{ height: journeyHeight }}>
+          <JourneyPathSvg path={journeyPath} height={journeyHeight} />
+          {journeySteps.map((step, index) => (
+            <JourneyStepButton
+              key={step.id}
+              step={step}
+              point={journeyPoints[index]}
+              active={step.debtId === selectedDebtId}
               onClick={() => {
-                if (node.debtId) setSelectedDebtId(node.debtId);
+                if (step.debtId) setSelectedDebtId(step.debtId);
               }}
             />
           ))}
-        </motion.div>
+        </div>
       </section>
 
       <AnimatePresence>
@@ -2457,144 +2446,219 @@ function CalendarList({ items, compact = false }: { items: CalendarItem[]; compa
   );
 }
 
-function TreeConnection({ from, to }: { from: TreeNode; to: TreeNode }) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const width = Math.hypot(dx, dy);
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-
+function JourneyPathSvg({ path, height }: { path: string; height: number }) {
   return (
-    <div
-      className="tree-line"
-      style={{
-        left: from.x,
-        top: from.y,
-        width,
-        transform: `rotate(${angle}deg)`
-      }}
-    />
+    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 320 ${height}`} aria-hidden="true">
+      <defs>
+        <linearGradient id="journey-path-gradient" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#21B7A6" />
+          <stop offset="58%" stopColor="#2BB673" />
+          <stop offset="100%" stopColor="#F59E5B" />
+        </linearGradient>
+      </defs>
+      <path d={path} fill="none" stroke="rgba(18,51,95,0.08)" strokeLinecap="round" strokeWidth="18" />
+      <motion.path
+        d={path}
+        fill="none"
+        stroke="url(#journey-path-gradient)"
+        strokeLinecap="round"
+        strokeWidth="8"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.85 }}
+      />
+    </svg>
   );
 }
 
-function TreeNodeButton({
-  node,
+function JourneyStepButton({
+  step,
+  point,
   active,
   onClick
 }: {
-  node: TreeNode;
+  step: JourneyStep;
+  point: JourneyPoint;
   active: boolean;
   onClick: () => void;
 }) {
-  const Icon = node.icon;
-  const toneClass = {
-    root: "bg-ink text-white border-ink shadow-glow",
-    blue: "bg-white text-ocean border-ocean/10",
-    green: "bg-leaf text-white border-leaf",
-    orange: "bg-amber text-white border-amber",
-    danger: "bg-white text-danger border-danger/28"
-  }[node.tone];
+  const Icon = step.icon;
+  const interactive = Boolean(step.debtId);
+  const stateLabel: Record<JourneyStepState, string> = {
+    done: "Concluído",
+    current: "Agora",
+    future: "Próximo",
+    locked: "Bloqueado"
+  };
+  const bubbleClass = {
+    ink: "border-ink bg-ink text-white shadow-glow",
+    blue: "border-white bg-white text-ocean shadow-soft",
+    green: "border-leaf bg-leaf text-white shadow-soft",
+    orange: "border-amber bg-amber text-white shadow-soft",
+    muted: "border-white bg-white text-ocean/42 shadow-sm"
+  }[step.tone];
+  const pillClass = {
+    done: "bg-leaf text-white",
+    current: "bg-amber text-white",
+    future: "bg-white text-ocean",
+    locked: "bg-ocean/8 text-ocean/48"
+  }[step.state];
 
   return (
     <motion.button
       type="button"
+      disabled={!interactive}
       onClick={onClick}
       className={cn(
-        "absolute flex min-h-[70px] w-[128px] flex-col items-center justify-center rounded-[8px] border px-3 py-3 text-center shadow-sm",
-        toneClass,
-        active && "ring-4 ring-aqua/25"
+        "absolute flex w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center",
+        interactive ? "cursor-pointer" : "cursor-default"
       )}
-      style={{ left: node.x, top: node.y, transform: "translate(-50%, -50%)" }}
-      whileTap={{ scale: 0.96 }}
+      style={{ left: point.x, top: point.y }}
+      initial={{ opacity: 0, y: 18, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.38 }}
+      whileTap={interactive ? { scale: 0.96 } : undefined}
     >
-      <Icon size={20} />
-      <span className="mt-2 text-sm font-black leading-4">{node.label}</span>
-      <span className={cn("mt-1 text-[11px] leading-4", node.tone === "root" || node.tone === "green" || node.tone === "orange" ? "text-white/78" : "text-ocean/62")}>
-        {node.sublabel}
+      <span className={cn("relative grid h-20 w-20 place-items-center rounded-full border-4", bubbleClass, active && "ring-4 ring-aqua/25")}>
+        {step.state === "done" && (
+          <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-leaf text-white shadow-sm">
+            <CheckCircle2 size={16} />
+          </span>
+        )}
+        {step.state === "locked" && (
+          <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-ocean/10 text-ocean/45">
+            <Lock size={15} />
+          </span>
+        )}
+        <Icon size={28} />
+      </span>
+      <span className="mt-2 max-w-[128px] text-sm font-black leading-4 text-ink">{step.label}</span>
+      <span className="mt-1 max-h-8 max-w-[132px] overflow-hidden text-[11px] leading-4 text-ocean/58">{step.sublabel}</span>
+      <span className={cn("mt-2 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide", pillClass)}>
+        {stateLabel[step.state]}
       </span>
     </motion.button>
   );
 }
 
-function buildTreeNodes(data: AppData): TreeNode[] {
-  const debtNodes = data.debts.slice(0, 5).map((debt, index) => ({
-    id: `debt-${debt.id}`,
-    label: debt.name,
-    sublabel: formatMoney(remainingDebt(debt)),
-    x: 650,
-    y: 110 + index * 88,
-    icon: debt.urgent ? AlertTriangle : WalletCards,
-    tone: debt.urgent ? "orange" : "blue",
-    debtId: debt.id
-  })) satisfies TreeNode[];
+function buildJourneyPoints(count: number): JourneyPoint[] {
+  const xPositions = [160, 82, 238, 92, 228, 80, 240, 106, 214, 160];
+  return Array.from({ length: count }, (_, index) => ({
+    x: xPositions[index % xPositions.length],
+    y: 62 + index * 116
+  }));
+}
 
-  return [
+function buildJourneyPath(points: JourneyPoint[]) {
+  if (points.length === 0) return "";
+
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index];
+    return `${path} C ${previous.x} ${previous.y + 54}, ${point.x} ${point.y - 54}, ${point.x} ${point.y}`;
+  }, `M ${points[0].x} ${points[0].y}`);
+}
+
+function normalizeJourneySteps(steps: JourneyStep[]): JourneyStep[] {
+  const currentIndex = steps.findIndex((step) => step.state !== "done" && step.state !== "locked");
+  if (currentIndex < 0) return steps;
+
+  return steps.map((step, index) => {
+    if (step.state === "done" || step.state === "locked") return step;
+    return {
+      ...step,
+      state: index === currentIndex ? "current" : "future"
+    };
+  });
+}
+
+function buildJourneySteps(data: AppData): JourneyStep[] {
+  const plan = buildPayoffPlan(data);
+  const hasIncome = data.income.monthly > 0;
+  const hasExpenses = data.expenses.length > 0;
+  const hasDebts = data.debts.length > 0;
+  const hasCapacity = hasDebts && paymentCapacity(data) > 0;
+  const allDebtsDone = hasDebts && totalRemaining(data.debts) <= 0;
+
+  const baseSteps: JourneyStep[] = [
     {
-      id: "root",
-      label: "Minha vida",
-      sublabel: percent.format(progressRatio(data.debts)),
-      x: 380,
-      y: 300,
+      id: "profile",
+      label: "Começo",
+      sublabel: data.profile?.name ? `Olá, ${data.profile.name}` : "Crie seu perfil",
       icon: Leaf,
-      tone: "root"
+      tone: "ink",
+      state: data.profile ? "done" : "current"
     },
     {
       id: "income",
       label: "Renda",
-      sublabel: formatMoney(data.income.monthly),
-      x: 170,
-      y: 150,
+      sublabel: hasIncome ? formatMoney(data.income.monthly) : "Cadastre sua renda",
       icon: WalletCards,
-      tone: "green"
+      tone: "green",
+      state: hasIncome ? "done" : "current"
     },
     {
       id: "expenses",
       label: "Gastos",
-      sublabel: formatMoney(totalExpenses(data)),
-      x: 170,
-      y: 450,
+      sublabel: hasExpenses ? formatMoney(totalExpenses(data)) : "Liste suas contas",
       icon: Home,
-      tone: "blue"
+      tone: "blue",
+      state: hasExpenses ? "done" : "current"
     },
     {
       id: "debts",
       label: "Dívidas",
-      sublabel: formatMoney(totalRemaining(data.debts)),
-      x: 550,
-      y: 300,
+      sublabel: hasDebts ? formatMoney(totalRemaining(data.debts)) : "Adicione a primeira",
       icon: AlertTriangle,
-      tone: data.debts.some((debt) => debt.urgent && remainingDebt(debt) > 0) ? "orange" : "blue"
+      tone: hasDebts ? "orange" : "muted",
+      state: hasDebts ? "done" : "current"
     },
     {
       id: "plan",
       label: "Plano",
-      sublabel: strategyLabel(data.strategy),
-      x: 380,
-      y: 90,
+      sublabel: hasCapacity ? strategyLabel(data.strategy) : "Defina sua capacidade",
       icon: ClipboardCheck,
-      tone: "blue"
-    },
-    {
-      id: "goal",
-      label: "Próxima meta",
-      sublabel: data.onboarding.firstGoal || "A definir",
-      x: 380,
-      y: 520,
-      icon: Target,
-      tone: "green"
-    },
-    ...debtNodes
+      tone: "blue",
+      state: hasCapacity ? "done" : "current"
+    }
   ];
-}
 
-function buildTreeLines(data: AppData): TreeLine[] {
-  return [
-    { from: "root", to: "income" },
-    { from: "root", to: "expenses" },
-    { from: "root", to: "debts" },
-    { from: "root", to: "plan" },
-    { from: "root", to: "goal" },
-    ...data.debts.slice(0, 5).map((debt) => ({ from: "debts", to: `debt-${debt.id}` }))
-  ];
+  const firstDebtStep: JourneyStep[] = hasDebts
+    ? []
+    : [
+        {
+          id: "first-debt-path",
+          label: "Primeira dívida",
+          sublabel: "Cadastre para começar",
+          icon: Plus,
+          tone: "orange",
+          state: "current"
+        }
+      ];
+
+  const debtSteps: JourneyStep[] = plan.slice(0, 6).map((item, index) => {
+    const remaining = remainingDebt(item.debt);
+    const done = remaining <= 0;
+    return {
+      id: `journey-${item.debt.id}`,
+      label: item.debt.name,
+      sublabel: done ? "Dívida quitada" : `${formatMoney(remaining)} restantes`,
+      icon: item.debt.urgent ? AlertTriangle : WalletCards,
+      tone: done ? "green" : item.debt.urgent ? "orange" : "blue",
+      state: done ? "done" : index === 0 ? "current" : "future",
+      debtId: item.debt.id
+    };
+  });
+
+  const goalStep: JourneyStep = {
+    id: "goal",
+    label: "Meta liberada",
+    sublabel: data.onboarding.firstGoal || "Seu próximo plano",
+    icon: Target,
+    tone: allDebtsDone ? "green" : "muted",
+    state: allDebtsDone ? "done" : "locked"
+  };
+
+  return normalizeJourneySteps([...baseSteps, ...firstDebtStep, ...debtSteps, goalStep]);
 }
 
 function registerPayment(
@@ -2658,31 +2722,102 @@ function exportData(data: AppData) {
 }
 
 function AnimatedTreePreview() {
+  const nodes = [
+    { cx: 70, cy: 54, r: 22, fill: "#F59E5B", label: "1", delay: 0.45 },
+    { cx: 207, cy: 45, r: 24, fill: "#2BB673", label: "2", delay: 0.55 },
+    { cx: 50, cy: 116, r: 20, fill: "#FFFFFF", label: "3", delay: 0.65 },
+    { cx: 226, cy: 120, r: 20, fill: "#21B7A6", label: "4", delay: 0.75 },
+    { cx: 140, cy: 32, r: 26, fill: "#FFFFFF", label: "+", delay: 0.85 }
+  ];
+
   return (
-    <div className="relative mx-auto h-36 w-64">
-      <motion.div
-        className="absolute left-1/2 top-10 h-24 w-1 -translate-x-1/2 rounded-full bg-aqua"
-        initial={{ height: 0 }}
-        animate={{ height: 96 }}
-        transition={{ duration: 0.8, delay: 0.15 }}
-      />
-      {([
-        ["left-7 top-4", "bg-amber", 0.2],
-        ["right-7 top-4", "bg-leaf", 0.32],
-        ["left-0 bottom-0", "bg-white", 0.44],
-        ["right-0 bottom-0", "bg-aqua", 0.56],
-        ["left-1/2 top-0 -translate-x-1/2", "bg-white", 0.68]
-      ] as const).map(([position, color, delay]) => (
-        <motion.div
-          key={position}
-          className={cn("absolute grid h-16 w-16 place-items-center rounded-full text-sm font-black text-ink shadow-glow", position, color)}
-          initial={{ opacity: 0, scale: 0.62 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: Number(delay) }}
-        >
-          +
-        </motion.div>
-      ))}
+    <div className="relative mx-auto h-44 w-full max-w-[280px]">
+      <motion.svg
+        className="h-full w-full overflow-visible"
+        viewBox="0 0 280 170"
+        initial="hidden"
+        animate="visible"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="tree-preview-trunk" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#21B7A6" />
+            <stop offset="100%" stopColor="#2BB673" />
+          </linearGradient>
+          <filter id="tree-preview-shadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="#21B7A6" floodOpacity="0.28" />
+          </filter>
+        </defs>
+        <motion.path
+          d="M140 156 C138 132 140 104 140 78"
+          fill="none"
+          stroke="url(#tree-preview-trunk)"
+          strokeLinecap="round"
+          strokeWidth="9"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.7, delay: 0.12 }}
+        />
+        <motion.path
+          d="M140 94 C116 78 94 63 70 54"
+          fill="none"
+          stroke="#8BD1BE"
+          strokeLinecap="round"
+          strokeWidth="6"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.55, delay: 0.25 }}
+        />
+        <motion.path
+          d="M140 86 C162 68 184 53 207 45"
+          fill="none"
+          stroke="#8BD1BE"
+          strokeLinecap="round"
+          strokeWidth="6"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.55, delay: 0.32 }}
+        />
+        <motion.path
+          d="M140 121 C112 122 83 119 50 116"
+          fill="none"
+          stroke="#B7DCCF"
+          strokeLinecap="round"
+          strokeWidth="5"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.55, delay: 0.39 }}
+        />
+        <motion.path
+          d="M140 121 C169 119 196 119 226 120"
+          fill="none"
+          stroke="#B7DCCF"
+          strokeLinecap="round"
+          strokeWidth="5"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.55, delay: 0.46 }}
+        />
+        <motion.path
+          d="M140 155 C121 148 103 149 84 158 M140 155 C159 148 177 149 196 158"
+          fill="none"
+          stroke="#6BAE91"
+          strokeLinecap="round"
+          strokeWidth="5"
+          variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+          transition={{ duration: 0.5, delay: 0.52 }}
+        />
+        {nodes.map((node) => (
+          <motion.g
+            key={`${node.cx}-${node.cy}`}
+            filter="url(#tree-preview-shadow)"
+            initial={{ opacity: 0, scale: 0.65 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.36, delay: node.delay }}
+            style={{ transformOrigin: `${node.cx}px ${node.cy}px` }}
+          >
+            <circle cx={node.cx} cy={node.cy} r={node.r} fill={node.fill} />
+            <text x={node.cx} y={node.cy + 5} textAnchor="middle" className="fill-ink text-sm font-black">
+              {node.label}
+            </text>
+          </motion.g>
+        ))}
+      </motion.svg>
     </div>
   );
 }
