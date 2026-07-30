@@ -20,6 +20,7 @@ import {
   Lock,
   LucideIcon,
   Map,
+  MessageCircle,
   PiggyBank,
   Plus,
   RefreshCcw,
@@ -329,6 +330,7 @@ export function OrganizaApp() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(cloudReady ? "checking" : "local");
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
+  const [floatingAssistantOpen, setFloatingAssistantOpen] = useState(false);
   const initialCloudSaveSkipped = useRef(false);
   const cloudSaveVersion = useRef(0);
   const celebrationSnapshot = useRef<{ earnedIds: AchievementId[]; level: number } | null>(null);
@@ -747,6 +749,12 @@ export function OrganizaApp() {
           onClose={() => setInstallHelpOpen(false)}
         />
         <CelebrationOverlay event={celebration} onClose={() => setCelebration(null)} />
+        <FloatingAssistant
+          data={data}
+          open={floatingAssistantOpen}
+          onOpen={() => setFloatingAssistantOpen(true)}
+          onClose={() => setFloatingAssistantOpen(false)}
+        />
       </div>
     </main>
   );
@@ -2171,24 +2179,200 @@ function AssistantViewV2({ data }: { data: AppData }) {
       </div>
 
       <form
-        className="flex gap-2"
+        className="grid grid-cols-[minmax(0,1fr)_56px] gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           sendMessage(input);
         }}
       >
         <input
-          className="field"
+          className="field min-w-0"
           value={input}
           disabled={thinking}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Pergunte sobre seu plano"
         />
-        <AppButton type="submit" disabled={thinking} className="w-14 shrink-0 px-0" aria-label="Enviar mensagem">
+        <button
+          type="submit"
+          disabled={thinking}
+          className="grid h-12 w-14 shrink-0 place-items-center rounded-[8px] bg-ink text-white shadow-soft transition hover:bg-ocean disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Enviar mensagem"
+        >
           <ArrowRight size={19} />
-        </AppButton>
+        </button>
       </form>
     </div>
+  );
+}
+
+function FloatingAssistant({
+  data,
+  open,
+  onOpen,
+  onClose
+}: {
+  data: AppData;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const [messages, setMessages] = useState<AssistantMessage[]>([
+    {
+      role: "assistant",
+      text: "Oi! Sou a IA do Organiza+. Posso analisar seu mapa, explicar prioridades e montar mensagens de negociação."
+    }
+  ]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [assistantMode, setAssistantMode] = useState<"local" | "openai" | "error">("local");
+
+  async function sendMessage(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || thinking) return;
+
+    const localReply = generateLocalAssistantReply(trimmed, data);
+    setInput("");
+    setThinking(true);
+    setMessages((previous) => [...previous, { role: "user", text: trimmed }]);
+
+    try {
+      const response = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          context: buildAssistantContext(data)
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        mode?: string;
+        reply?: string;
+      } | null;
+      const realAiReply = response.ok && payload?.mode === "openai" && payload.reply;
+      const reply = realAiReply ? payload.reply || localReply : localReply;
+
+      setAssistantMode(realAiReply ? "openai" : payload?.mode === "openai-error" ? "error" : "local");
+      setMessages((previous) => [...previous, { role: "assistant", text: reply }]);
+    } catch {
+      setAssistantMode("error");
+      setMessages((previous) => [...previous, { role: "assistant", text: localReply }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  const shortcuts = ["O que faço hoje?", "Qual dívida priorizar?", "Mensagem para negociar"];
+
+  return (
+    <>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="fixed inset-x-0 bottom-24 z-[65] mx-auto w-full max-w-[480px] px-3"
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            transition={{ duration: 0.22 }}
+          >
+            <section className="ml-auto flex max-h-[72vh] w-full max-w-[430px] flex-col overflow-hidden rounded-[8px] border border-ocean/10 bg-white shadow-soft">
+              <div className="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-leaf text-white shadow-glow">
+                    <Brain size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-black leading-tight">IA Organiza+</h2>
+                    <p className="text-xs font-semibold text-white/62">
+                      {assistantMode === "openai"
+                        ? "IA real ativa"
+                        : assistantMode === "error"
+                          ? "Modo local de segurança"
+                          : "Assistente contextual"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/8 text-white"
+                  aria-label="Fechar chat da IA"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto bg-cloud p-3 app-scrollbar">
+                {messages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={cn(
+                      "max-w-[86%] rounded-[8px] px-3 py-2 text-sm leading-6 shadow-sm",
+                      message.role === "assistant" ? "bg-white text-ocean" : "ml-auto bg-leaf text-white"
+                    )}
+                  >
+                    {message.text}
+                  </div>
+                ))}
+                {thinking && (
+                  <div className="max-w-[86%] rounded-[8px] bg-white px-3 py-2 text-sm font-bold text-ocean/66 shadow-sm">
+                    Pensando no seu plano...
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto border-t border-ocean/8 bg-white px-3 py-2 app-scrollbar">
+                {shortcuts.map((shortcut) => (
+                  <button
+                    key={shortcut}
+                    type="button"
+                    disabled={thinking}
+                    onClick={() => sendMessage(shortcut)}
+                    className="shrink-0 rounded-full border border-ocean/10 bg-mist px-3 py-2 text-xs font-black text-ocean disabled:opacity-50"
+                  >
+                    {shortcut}
+                  </button>
+                ))}
+              </div>
+
+              <form
+                className="grid grid-cols-[minmax(0,1fr)_52px] gap-2 border-t border-ocean/8 bg-white p-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  sendMessage(input);
+                }}
+              >
+                <input
+                  className="field min-w-0 rounded-full"
+                  value={input}
+                  disabled={thinking}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder="Digite sua mensagem"
+                />
+                <button
+                  type="submit"
+                  disabled={thinking}
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-ink text-white shadow-soft transition hover:bg-ocean disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Enviar mensagem"
+                >
+                  <ArrowRight size={19} />
+                </button>
+              </form>
+            </section>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] mx-auto w-full max-w-[480px] px-4">
+        <button
+          type="button"
+          onClick={open ? onClose : onOpen}
+          className="pointer-events-auto ml-auto grid h-14 w-14 place-items-center rounded-full bg-leaf text-white shadow-glow ring-4 ring-white transition hover:scale-[1.03]"
+          aria-label={open ? "Fechar IA" : "Abrir IA"}
+        >
+          {open ? <X size={24} /> : <MessageCircle size={25} />}
+        </button>
+      </div>
+    </>
   );
 }
 
