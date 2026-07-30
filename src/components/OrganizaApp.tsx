@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -61,8 +61,12 @@ import { createId, defaultData, starterDebts, starterExpenses, storageKey } from
 import { formatMoney, formatMonthYear, formatShortDate, moneyToNumber, percent, textValue } from "@/lib/format";
 import { generateLocalAssistantReply } from "@/lib/localAssistant";
 import { actionCompletedToday, calculateJourney } from "@/lib/gamification";
+import { supabase } from "@/lib/supabase";
+import { cloudReady, loadCloudData, saveCloudData } from "@/lib/cloudSync";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type AuthPayload = { name: string; email: string; password: string };
+type SyncStatus = "local" | "checking" | "online" | "saving" | "error";
 
 type AssistantMessage = {
   role: "user" | "assistant";
@@ -256,29 +260,106 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function readableError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "Nao foi possivel concluir agora. Confira os dados e tente novamente.";
+}
+
 export function OrganizaApp() {
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<AppData>(() => emptyData());
   const [authMode, setAuthMode] = useState<"opening" | "login" | "signup">("opening");
   const [view, setView] = useState<ViewKey>("today");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [cloudUserId, setCloudUserId] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(cloudReady ? "checking" : "local");
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+  const initialCloudSaveSkipped = useRef(false);
 
   useEffect(() => {
+    let active = true;
     const stored = window.localStorage.getItem(storageKey);
+    let localData = emptyData();
+
     if (stored) {
       try {
-        setData(normalizeData(JSON.parse(stored) as Partial<AppData>));
+        localData = normalizeData(JSON.parse(stored) as Partial<AppData>);
       } catch {
-        setData(emptyData());
+        localData = emptyData();
       }
     }
-    setMounted(true);
+
+    setData(localData);
+
+    async function loadSession() {
+      if (!cloudReady || !supabase) {
+        setSyncStatus("local");
+        setMounted(true);
+        return;
+      }
+
+      try {
+        setSyncStatus("checking");
+        const sessionResult = await supabase.auth.getSession();
+        if (sessionResult.error) throw sessionResult.error;
+
+        const user = sessionResult.data.session?.user;
+        if (!user) {
+          if (!active) return;
+          setSyncStatus("local");
+          setMounted(true);
+          return;
+        }
+
+        const cloudData = await loadCloudData(user);
+        if (!active) return;
+        setCloudUserId(user.id);
+        setCloudSyncEnabled(true);
+        setData(normalizeData(cloudData));
+        setSyncStatus("online");
+        setMounted(true);
+      } catch (error) {
+        if (!active) return;
+        setAuthError(readableError(error));
+        setSyncStatus("error");
+        setMounted(true);
+      }
+    }
+
+    loadSession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
     window.localStorage.setItem(storageKey, JSON.stringify(data));
   }, [data, mounted]);
+
+  useEffect(() => {
+    if (!mounted || !cloudSyncEnabled || !cloudUserId) return;
+
+    if (!initialCloudSaveSkipped.current) {
+      initialCloudSaveSkipped.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        setSyncStatus("saving");
+        await saveCloudData(cloudUserId, data);
+        setSyncStatus("online");
+      } catch {
+        setSyncStatus("error");
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timeout);
+  }, [cloudSyncEnabled, cloudUserId, data, mounted]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -311,6 +392,80 @@ export function OrganizaApp() {
     setInstallPrompt(null);
   }
 
+  async function handleAuthSubmit(payload: AuthPayload, mode: "login" | "signup") {
+    setAuthBusy(true);
+    setAuthError("");
+
+    if (!cloudReady || !supabase) {
+      updateData((previous) => ({
+        ...previous,
+        profile: {
+          name: payload.name || "Usuario Organiza+",
+          email: payload.email || "demo@organizamais.local",
+          createdAt: new Date().toISOString()
+        },
+        localModeAcknowledged: true,
+        achievements: Array.from(new Set([...previous.achievements, "first-login"]))
+      }));
+      setAuthBusy(false);
+      return;
+    }
+
+    try {
+      const authResult =
+        mode === "signup"
+          ? await supabase.auth.signUp({
+              email: payload.email,
+              password: payload.password,
+              options: { data: { name: payload.name } }
+            })
+          : await supabase.auth.signInWithPassword({
+              email: payload.email,
+              password: payload.password
+            });
+
+      if (authResult.error) throw authResult.error;
+
+      const user = authResult.data.user;
+      if (!user) throw new Error("Nao foi possivel abrir a conta agora.");
+
+      const cloudData = await loadCloudData(user);
+      const profile = {
+        name: cloudData.profile?.name || payload.name || user.email?.split("@")[0] || "Usuario Organiza+",
+        email: cloudData.profile?.email || user.email || payload.email,
+        createdAt: cloudData.profile?.createdAt || user.created_at || new Date().toISOString()
+      };
+
+      setCloudUserId(user.id);
+      setCloudSyncEnabled(true);
+      setSyncStatus("online");
+      initialCloudSaveSkipped.current = true;
+      updateData({
+        ...cloudData,
+        profile,
+        achievements: Array.from(new Set([...cloudData.achievements, "first-login"]))
+      });
+    } catch (error) {
+      setAuthError(readableError(error));
+      setSyncStatus("error");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleSignOut() {
+    if (supabase) {
+      await supabase.auth.signOut().catch(() => undefined);
+    }
+    window.localStorage.removeItem(storageKey);
+    setCloudUserId(null);
+    setCloudSyncEnabled(false);
+    setSyncStatus(cloudReady ? "local" : "local");
+    initialCloudSaveSkipped.current = false;
+    setAuthMode("opening");
+    updateData(emptyData());
+  }
+
   if (!mounted) {
     return <LoadingScreen />;
   }
@@ -321,14 +476,10 @@ export function OrganizaApp() {
         data={data}
         mode={authMode}
         onModeChange={setAuthMode}
-        onCreateProfile={(profile) => {
-          updateData((previous) => ({
-            ...previous,
-            profile,
-            localModeAcknowledged: true,
-            achievements: Array.from(new Set([...previous.achievements, "first-login"]))
-          }));
-        }}
+        cloudEnabled={cloudReady}
+        busy={authBusy}
+        error={authError}
+        onSubmitAuth={handleAuthSubmit}
       />
     );
   }
@@ -345,6 +496,8 @@ export function OrganizaApp() {
           view={view}
           earnedCount={earnedCount}
           installAvailable={Boolean(installPrompt)}
+          cloudEnabled={cloudSyncEnabled}
+          syncStatus={syncStatus}
           onInstall={installApp}
           onNavigate={setView}
         />
@@ -370,8 +523,11 @@ export function OrganizaApp() {
                   updateData={updateData}
                   earnedCount={earnedCount}
                   installAvailable={Boolean(installPrompt)}
+                  cloudEnabled={cloudSyncEnabled}
+                  syncStatus={syncStatus}
                   onInstall={installApp}
                   onNavigate={setView}
+                  onSignOut={handleSignOut}
                 />
               )}
             </motion.section>
@@ -403,20 +559,30 @@ function AuthScreen({
   data,
   mode,
   onModeChange,
-  onCreateProfile
+  cloudEnabled,
+  busy,
+  error,
+  onSubmitAuth
 }: {
   data: AppData;
   mode: "opening" | "login" | "signup";
   onModeChange: (mode: "opening" | "login" | "signup") => void;
-  onCreateProfile: (profile: NonNullable<AppData["profile"]>) => void;
+  cloudEnabled: boolean;
+  busy: boolean;
+  error: string;
+  onSubmitAuth: (payload: AuthPayload, mode: "login" | "signup") => void;
 }) {
   if (mode === "opening") {
+    const modeBadge = cloudEnabled
+      ? ({ tone: "green", label: "Conta online" } as const)
+      : ({ tone: "orange", label: "Modo local demonstrativo" } as const);
+
     return (
       <main className="min-h-screen bg-ink px-5 py-7 text-white">
         <div className="mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-[480px] flex-col">
           <div className="flex items-center justify-between">
             <BrandLockup contrast />
-            <Badge tone="orange">Modo local demonstrativo</Badge>
+            <Badge tone={modeBadge.tone}>{modeBadge.label}</Badge>
           </div>
 
           <div className="flex flex-1 flex-col justify-center gap-8 py-10">
@@ -436,7 +602,7 @@ function AuthScreen({
                 </div>
                 <AnimatedTreePreview />
                 <div className="grid grid-cols-3 gap-2 text-[11px] text-white/76">
-                  <MiniTrust icon={ShieldCheck} label="Dados no aparelho" />
+                  <MiniTrust icon={ShieldCheck} label={cloudEnabled ? "Dados na nuvem" : "Dados no aparelho"} />
                   <MiniTrust icon={Map} label="Mapa visual" />
                   <MiniTrust icon={Brain} label="IA demo" />
                 </div>
@@ -455,7 +621,7 @@ function AuthScreen({
                   Começar agora
                 </AppButton>
                 <AppButton variant="secondary" onClick={() => onModeChange("login")} icon={<Lock size={18} />}>
-                  Já tenho conta demo
+                  {cloudEnabled ? "Ja tenho conta" : "Ja tenho conta demo"}
                 </AppButton>
               </div>
               {data.demoDataLoaded && (
@@ -484,10 +650,18 @@ function AuthScreen({
         <div className="mb-7">
           <BrandLockup />
           <h1 className="mt-8 text-3xl font-black">
-            {mode === "signup" ? "Criar conta demo" : "Entrar na conta demo"}
+            {mode === "signup"
+              ? cloudEnabled
+                ? "Criar conta"
+                : "Criar conta demo"
+              : cloudEnabled
+                ? "Entrar na conta"
+                : "Entrar na conta demo"}
           </h1>
           <p className="mt-3 text-sm leading-6 text-ocean/74">
-            Esta versão salva tudo localmente no seu aparelho. Nenhuma senha bancária é pedida.
+            {cloudEnabled
+              ? "Sua conta sera salva com seguranca no Supabase. O Organiza+ nao pede senha bancaria."
+              : "Esta versao salva tudo localmente no seu aparelho. Nenhuma senha bancaria e pedida."}
           </p>
         </div>
         <form
@@ -495,32 +669,44 @@ function AuthScreen({
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            const name = textValue(form.get("name")) || "Usuário Organiza+";
+            const name = textValue(form.get("name")) || "Usuario Organiza+";
             const email = textValue(form.get("email")) || "demo@organizamais.local";
-            onCreateProfile({
-              name,
-              email,
-              createdAt: new Date().toISOString()
-            });
+            const password = textValue(form.get("password")) || "demo-password";
+            onSubmitAuth({ name, email, password }, mode === "login" ? "login" : "signup");
           }}
         >
           <label className="grid gap-2 text-sm font-semibold text-ocean">
             Nome
-            <input className="field" name="name" placeholder="Seu nome" autoComplete="name" />
+            <input className="field" name="name" placeholder="Seu nome" autoComplete="name" required={mode === "signup" && cloudEnabled} />
           </label>
           <label className="grid gap-2 text-sm font-semibold text-ocean">
             E-mail
-            <input className="field" name="email" type="email" placeholder="voce@email.com" autoComplete="email" />
+            <input className="field" name="email" type="email" placeholder="voce@email.com" autoComplete="email" required={cloudEnabled} />
           </label>
           <label className="grid gap-2 text-sm font-semibold text-ocean">
-            Senha demo
-            <input className="field" name="password" type="password" placeholder="Somente para fluxo visual" autoComplete="current-password" />
+            {cloudEnabled ? "Senha" : "Senha demo"}
+            <input
+              className="field"
+              name="password"
+              type="password"
+              placeholder={cloudEnabled ? "Minimo 6 caracteres" : "Somente para fluxo visual"}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              minLength={cloudEnabled ? 6 : undefined}
+              required={cloudEnabled}
+            />
           </label>
           <div className="demo-ribbon rounded-[8px] border border-amber/25 p-3 text-xs font-medium text-ocean">
-            Modo demonstrativo: o login é local e não autentica em servidor. Supabase já está preparado para uma próxima fase.
+            {cloudEnabled
+              ? "Conta online: seus dados serao sincronizados na nuvem deste projeto."
+              : "Modo demonstrativo: o login e local e nao autentica em servidor. Supabase ja esta preparado para ativar depois."}
           </div>
-          <AppButton type="submit" icon={<ArrowRight size={18} />}>
-            Continuar
+          {error && (
+            <div className="rounded-[8px] border border-danger/20 bg-danger/10 p-3 text-xs font-bold text-danger">
+              {error}
+            </div>
+          )}
+          <AppButton type="submit" disabled={busy} icon={<ArrowRight size={18} />}>
+            {busy ? (mode === "login" ? "Entrando..." : "Criando...") : "Continuar"}
           </AppButton>
         </form>
       </div>
@@ -792,6 +978,8 @@ function AppHeader({
   view,
   earnedCount,
   installAvailable,
+  cloudEnabled,
+  syncStatus,
   onInstall,
   onNavigate
 }: {
@@ -799,6 +987,8 @@ function AppHeader({
   view: ViewKey;
   earnedCount: number;
   installAvailable: boolean;
+  cloudEnabled: boolean;
+  syncStatus: SyncStatus;
   onInstall: () => void;
   onNavigate: (view: ViewKey) => void;
 }) {
@@ -811,6 +1001,16 @@ function AppHeader({
     achievements: "Conquistas",
     profile: "Perfil"
   };
+  const syncBadge: { tone: "blue" | "green" | "orange"; label: string } =
+    syncStatus === "saving"
+      ? { tone: "blue", label: "Salvando na nuvem" }
+      : syncStatus === "checking"
+        ? { tone: "blue", label: "Verificando conta" }
+        : syncStatus === "error"
+          ? { tone: "orange", label: "Verificar conexao" }
+          : cloudEnabled
+            ? { tone: "green", label: "Nuvem sincronizada" }
+            : { tone: "orange", label: "Modo local demonstrativo" };
 
   return (
     <header className="sticky top-0 z-20 border-b border-ocean/8 bg-cloud/94 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+14px)] backdrop-blur">
@@ -834,7 +1034,7 @@ function AppHeader({
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2 overflow-x-auto app-scrollbar">
-        <Badge tone="orange">Modo local demonstrativo</Badge>
+        <Badge tone={syncBadge.tone}>{syncBadge.label}</Badge>
         {data.demoDataLoaded && <Badge tone="green">Dados de exemplo ativos</Badge>}
         <Badge tone="blue">PWA instalável</Badge>
       </div>
@@ -1297,17 +1497,26 @@ function ProfileView({
   updateData,
   earnedCount,
   installAvailable,
+  cloudEnabled,
+  syncStatus,
   onInstall,
-  onNavigate
+  onNavigate,
+  onSignOut
 }: {
   data: AppData;
   updateData: (updater: AppData | ((previous: AppData) => AppData)) => void;
   earnedCount: number;
   installAvailable: boolean;
+  cloudEnabled: boolean;
+  syncStatus: SyncStatus;
   onInstall: () => void;
   onNavigate: (view: ViewKey) => void;
+  onSignOut: () => void;
 }) {
   const journey = calculateJourney(data);
+  const supabaseDescription = cloudEnabled
+    ? `Conta online ativa (${syncStatus === "saving" ? "salvando agora" : syncStatus === "error" ? "verifique a conexao" : "sincronizada"}).`
+    : "Ative as variaveis de ambiente para login e banco online.";
 
   return (
     <div className="space-y-4">
@@ -1374,7 +1583,11 @@ function ProfileView({
         <SectionTitle
           eyebrow="Configurações"
           title="Controle dos dados"
-          description="Tudo abaixo se refere ao modo local demonstrativo deste MVP."
+          description={
+            cloudEnabled
+              ? "Sua conta esta online. Alteracoes sao salvas automaticamente na nuvem."
+              : "Tudo abaixo se refere ao modo local demonstrativo deste MVP."
+          }
         />
         <div className="mt-4 grid gap-3">
           {installAvailable && (
@@ -1383,8 +1596,13 @@ function ProfileView({
             </AppButton>
           )}
           <AppButton variant="secondary" onClick={() => exportData(data)} icon={<Download size={18} />}>
-            Exportar dados locais
+            Exportar backup
           </AppButton>
+          {cloudEnabled && (
+            <AppButton variant="secondary" onClick={onSignOut} icon={<Lock size={18} />}>
+              Sair da conta
+            </AppButton>
+          )}
           <AppButton
             variant="danger"
             onClick={() => {
@@ -1403,7 +1621,7 @@ function ProfileView({
       <section className="rounded-[8px] border border-ocean/8 bg-white p-4 shadow-sm">
         <SectionTitle eyebrow="Integrações" title="Preparado para evoluir" />
         <div className="mt-4 grid gap-3">
-          <IntegrationRow icon={ShieldCheck} title="Supabase" description="Autenticação e banco prontos para conectar por variáveis de ambiente." />
+          <IntegrationRow icon={ShieldCheck} title="Supabase" description={supabaseDescription} />
           <IntegrationRow icon={Brain} title="OpenAI" description="Rota de assistente pronta. Sem chave, o app usa respostas demonstrativas locais." />
           <IntegrationRow icon={Bell} title="PWA" description="Manifesto e service worker configurados para instalação." />
         </div>

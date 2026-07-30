@@ -3,6 +3,10 @@ import type { AppData, Expense, Debt } from "./types";
 export const storageKey = "organiza-plus-mvp-v1";
 
 export function createId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
 }
 
