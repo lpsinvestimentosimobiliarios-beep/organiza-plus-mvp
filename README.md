@@ -21,6 +21,7 @@ Aplicativo PWA mobile-first em portugues do Brasil para ajudar pessoas a organiz
 - Jornada com XP, niveis, sequencia diaria e conquistas.
 - Perfil, exportacao, limpeza de dados e saida da conta online.
 - Manifesto PWA, icones e service worker.
+- Pagina de vendas em `/vendas`, pronta para receber link de checkout.
 - Arquitetura preparada para Supabase e OpenAI.
 
 ## Modo local
@@ -41,6 +42,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 No Supabase, rode o arquivo `organiza-plus-supabase-schema.sql` no SQL Editor para criar as tabelas e politicas de seguranca.
 
 Depois de adicionar as variaveis na Vercel, faca um novo deploy para as mudancas entrarem no site publicado.
+
+## Pagina de vendas e checkout
+
+A pagina comercial fica em:
+
+```text
+/vendas
+```
+
+Enquanto o checkout nao estiver conectado, o botao da oferta abre o app de teste. Para ligar Kiwify, Hotmart ou outro checkout, configure:
+
+```bash
+NEXT_PUBLIC_CHECKOUT_URL=
+```
+
+Depois de adicionar essa variavel na Vercel, faca um novo deploy.
 
 ## Rodar localmente
 
