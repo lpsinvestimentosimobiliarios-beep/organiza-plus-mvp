@@ -639,9 +639,9 @@ function InstallGuideModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-ink/52 px-3 py-3 backdrop-blur-sm sm:place-items-center">
+    <div className="fixed inset-0 z-50 grid items-end justify-items-center overflow-y-auto bg-ink/52 px-3 py-3 backdrop-blur-sm sm:items-center">
       <motion.section
-        className="w-full max-w-[480px] rounded-[8px] bg-white p-4 text-ink shadow-soft"
+        className="w-full max-w-[480px] max-h-[calc(100dvh-24px)] overflow-y-auto rounded-[8px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-ink shadow-soft"
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 16 }}
@@ -659,16 +659,28 @@ function InstallGuideModal({
           <IconButton label="Fechar instalacao" icon={X} onClick={onClose} />
         </div>
 
+        {!canPrompt && !installed && (
+          <div className="mt-4 flex gap-3 rounded-[8px] border border-amber/25 bg-amber/10 p-3">
+            <AlertTriangle size={19} className="mt-0.5 shrink-0 text-amber" />
+            <div>
+              <p className="text-sm font-black text-ocean">No iPhone, o passo e manual</p>
+              <p className="mt-1 text-sm leading-5 text-ocean/70">
+                A Apple nao deixa o Organiza+ abrir sozinho a tela de adicionar atalho. Toque no botao de compartilhar do navegador e escolha adicionar a tela inicial.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 grid gap-3">
           <InstallInstruction
             icon={Smartphone}
             title="Android"
-            description="No Chrome, toque em Instalar. Se nao aparecer, abra o menu de tres pontos e escolha Adicionar a tela inicial."
+            description="No Chrome, toque em Instalar se a janela aparecer. Se nao aparecer, abra o menu de tres pontos e escolha Adicionar a tela inicial."
           />
           <InstallInstruction
             icon={Share2}
             title="iPhone"
-            description="No Safari, toque em Compartilhar e depois em Adicionar a Tela de Inicio."
+            description="Use o Safari para melhor resultado. Toque no icone de compartilhar e depois em Adicionar a Tela de Inicio."
           />
           <InstallInstruction
             icon={Laptop}
@@ -684,7 +696,7 @@ function InstallGuideModal({
             </AppButton>
           )}
           <AppButton variant="secondary" onClick={onClose}>
-            Entendi
+            Entendi, vou fazer manualmente
           </AppButton>
         </div>
       </motion.section>
@@ -788,7 +800,7 @@ function AuthScreen({
                 </AppButton>
                 {installAvailable && (
                   <AppButton variant="ghost" onClick={onInstall} icon={<Download size={18} />}>
-                    Instalar no celular ou PC
+                    Como instalar no celular ou PC
                   </AppButton>
                 )}
               </div>
@@ -1191,7 +1203,7 @@ function AppHeader({
         </div>
         <div className="flex items-center gap-2">
           {installAvailable && (
-            <IconButton label="Instalar Organiza+" onClick={onInstall} icon={Download} />
+            <IconButton label="Como instalar o Organiza+" onClick={onInstall} icon={Download} />
           )}
           <button
             type="button"
@@ -1764,7 +1776,7 @@ function ProfileView({
         <div className="mt-4 grid gap-3">
           {installAvailable && (
             <AppButton variant="secondary" onClick={onInstall} icon={<Download size={18} />}>
-              Instalar na tela inicial ou PC
+              Como instalar na tela inicial ou PC
             </AppButton>
           )}
           {appInstalled && (
