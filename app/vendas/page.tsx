@@ -100,41 +100,41 @@ export default function SalesPage() {
 
 function Hero() {
   return (
-    <section className="relative isolate min-h-[88svh] overflow-hidden bg-ink text-white">
-      <div className="absolute inset-0" aria-hidden="true">
+    <section className="relative isolate overflow-hidden bg-ink text-white sm:min-h-[88svh]">
+      <div className="absolute inset-0 hidden sm:block" aria-hidden="true">
         <HeroScene />
       </div>
-      <div className="absolute inset-0 bg-ink/72" aria-hidden="true" />
+      <div className="absolute inset-0 hidden bg-ink/72 sm:block" aria-hidden="true" />
 
-      <div className="relative mx-auto flex min-h-[88svh] w-full max-w-6xl flex-col justify-between px-5 py-5 sm:px-8">
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col px-5 pb-28 pt-5 sm:min-h-[88svh] sm:justify-between sm:px-8 sm:py-5">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-[8px] bg-aqua text-ink">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-aqua text-ink">
               <Sparkles size={22} />
             </div>
             <div>
-              <p className="text-lg font-black leading-none">Organiza+</p>
+              <p className="text-base font-black leading-none sm:text-lg">Organiza+</p>
               <p className="text-xs font-bold text-white/68">Dívidas em mapa</p>
             </div>
           </div>
           <Link
             href="/"
-            className="inline-flex h-11 items-center gap-2 rounded-[8px] border border-white/18 px-4 text-sm font-black text-white"
+            className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-[8px] border border-white/18 px-3 text-xs font-black text-white sm:h-11 sm:px-4 sm:text-sm"
           >
             Entrar no app
             <ArrowRight size={16} />
           </Link>
         </header>
 
-        <div className="max-w-3xl pb-12 pt-16 sm:pb-16 sm:pt-20">
+        <div className="max-w-3xl pb-0 pt-14 sm:pb-16 sm:pt-20">
           <p className="mb-4 inline-flex items-center gap-2 rounded-[8px] border border-aqua/30 bg-aqua/12 px-3 py-2 text-sm font-black text-aqua">
             <ShieldCheck size={16} />
             Organizador financeiro visual
           </p>
-          <h1 className="text-[44px] font-black leading-[0.98] sm:text-7xl">
+          <h1 className="text-[40px] font-black leading-[1.02] sm:text-7xl sm:leading-[0.98]">
             Organiza+ Dívidas
           </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78 sm:text-xl">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
             Veja todas as suas dívidas em um único mapa, descubra o próximo passo e acompanhe sua evolução pelo celular.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
