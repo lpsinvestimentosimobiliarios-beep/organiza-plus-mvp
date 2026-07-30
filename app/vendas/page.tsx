@@ -28,8 +28,11 @@ export const metadata: Metadata = {
     "Página de vendas do Organiza+ Dívidas, o app que transforma contas, gastos e dívidas em um plano visual para acompanhar pelo celular."
 };
 
-const checkoutUrl = process.env.NEXT_PUBLIC_CHECKOUT_URL || "/";
-const checkoutReady = Boolean(process.env.NEXT_PUBLIC_CHECKOUT_URL);
+const checkoutUrl =
+  process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_URL ||
+  process.env.NEXT_PUBLIC_CHECKOUT_URL ||
+  "/";
+const checkoutReady = Boolean(process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_URL || process.env.NEXT_PUBLIC_CHECKOUT_URL);
 const launchOfferEndsAt = "2026-09-30T23:59:59-03:00";
 
 const benefits = [
@@ -502,9 +505,13 @@ function Faq() {
 }
 
 function CtaButton({ className = "" }: { className?: string }) {
+  const externalCheckout = checkoutUrl.startsWith("http");
+
   return (
     <Link
       href={checkoutUrl}
+      target={externalCheckout ? "_blank" : undefined}
+      rel={externalCheckout ? "noreferrer" : undefined}
       className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-leaf px-5 text-sm font-black text-white shadow-soft transition hover:bg-[#1f9f69] ${className}`}
     >
       Compre aqui

@@ -69,6 +69,34 @@ import { cloudReady, loadCloudData, resetCloudData, saveCloudData } from "@/lib/
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type AuthPayload = { name: string; email: string; password: string };
 type SyncStatus = "local" | "checking" | "online" | "saving" | "error";
+const checkoutUrl =
+  process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_URL ||
+  process.env.NEXT_PUBLIC_CHECKOUT_URL ||
+  "/vendas";
+const paidAccessRequired = process.env.NEXT_PUBLIC_REQUIRE_PAID_ACCESS !== "false";
+
+async function verifyPurchasedAccess(email: string) {
+  const response = await fetch("/api/access/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email })
+  });
+
+  const result = (await response.json().catch(() => ({}))) as {
+    allowed?: boolean;
+    reason?: string;
+  };
+
+  if (result.reason === "supabase-admin-not-configured") {
+    throw new Error("O acesso pago ainda nao foi ligado no servidor. Avise o suporte do Organiza+.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Nao foi possivel conferir sua compra agora. Tente novamente em alguns minutos.");
+  }
+
+  return Boolean(result.allowed);
+}
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice?: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
@@ -561,6 +589,15 @@ export function OrganizaApp() {
     }
 
     try {
+      if (mode === "signup" && paidAccessRequired) {
+        const accessAllowed = await verifyPurchasedAccess(payload.email);
+        if (!accessAllowed) {
+          throw new Error(
+            "Ainda nao encontrei uma compra aprovada para este e-mail. Conclua a compra na Kiwify e use o mesmo e-mail aqui."
+          );
+        }
+      }
+
       const authResult =
         mode === "signup"
           ? await supabase.auth.signUp({
@@ -1138,6 +1175,7 @@ function AuthScreen({
     const modeBadge = cloudEnabled
       ? ({ tone: "green", label: "Conta online" } as const)
       : ({ tone: "orange", label: "Modo local demonstrativo" } as const);
+    const paidSignupEnabled = cloudEnabled && paidAccessRequired;
 
     return (
       <main className="min-h-screen bg-ink px-5 py-7 text-white">
@@ -1179,11 +1217,17 @@ function AuthScreen({
                 </p>
               </div>
               <div className="grid gap-3">
-                <AppButton onClick={() => onModeChange("signup")} icon={<ArrowRight size={18} />}>
-                  Começar agora
-                </AppButton>
+                {paidSignupEnabled ? (
+                  <AppLinkButton href={checkoutUrl} icon={<ArrowRight size={18} />}>
+                    Comprar acesso
+                  </AppLinkButton>
+                ) : (
+                  <AppButton onClick={() => onModeChange("signup")} icon={<ArrowRight size={18} />}>
+                    Começar agora
+                  </AppButton>
+                )}
                 <AppButton variant="secondary" onClick={() => onModeChange("login")} icon={<Lock size={18} />}>
-                  {cloudEnabled ? "Ja tenho conta" : "Ja tenho conta demo"}
+                  {paidSignupEnabled ? "Ja comprei / Entrar" : cloudEnabled ? "Ja tenho conta" : "Ja tenho conta demo"}
                 </AppButton>
                 {installAvailable && (
                   <AppButton variant="ghost" onClick={onInstall} icon={<Download size={18} />}>
@@ -1191,6 +1235,11 @@ function AuthScreen({
                   </AppButton>
                 )}
               </div>
+              {paidSignupEnabled && (
+                <p className="rounded-[8px] border border-white/10 bg-white/8 p-3 text-xs leading-5 text-white/70">
+                  Depois da compra, volte aqui e crie sua senha usando o mesmo e-mail informado na Kiwify.
+                </p>
+              )}
               {data.demoDataLoaded && (
                 <p className="rounded-[8px] bg-white/8 p-3 text-xs text-white/70">
                   Existem dados demonstrativos salvos neste aparelho. Eles aparecem somente porque foram carregados manualmente.
@@ -1226,11 +1275,34 @@ function AuthScreen({
                 : "Entrar na conta demo"}
           </h1>
           <p className="mt-3 text-sm leading-6 text-ocean/74">
-            {cloudEnabled
-              ? "Sua conta sera salva com seguranca no Supabase. O Organiza+ nao pede senha bancaria."
-              : "Esta versao salva tudo localmente no seu aparelho. Nenhuma senha bancaria e pedida."}
+            {cloudEnabled && paidAccessRequired && mode === "signup"
+              ? "Crie sua senha usando o mesmo e-mail aprovado na compra. O Organiza+ nao pede senha bancaria."
+              : cloudEnabled
+                ? "Sua conta sera salva com seguranca no Supabase. O Organiza+ nao pede senha bancaria."
+                : "Esta versao salva tudo localmente no seu aparelho. Nenhuma senha bancaria e pedida."}
           </p>
         </div>
+        {cloudEnabled && paidAccessRequired && (
+          <div className="mb-5 rounded-[8px] border border-leaf/20 bg-leaf/10 p-4 text-sm leading-6 text-ocean">
+            {mode === "signup" ? (
+              <>
+                Cadastro protegido: para liberar o acesso, use o mesmo e-mail informado na compra da Kiwify.
+              </>
+            ) : (
+              <>
+                Se voce ja comprou e criou sua senha, entre normalmente. Se comprou e ainda nao criou a senha, toque em
+                <button
+                  type="button"
+                  onClick={() => onModeChange("signup")}
+                  className="mx-1 font-black text-leaf underline"
+                >
+                  criar acesso
+                </button>
+                .
+              </>
+            )}
+          </div>
+        )}
         <form
           className="grid gap-4"
           onSubmit={(event) => {
@@ -1275,6 +1347,20 @@ function AuthScreen({
           <AppButton type="submit" disabled={busy} icon={<ArrowRight size={18} />}>
             {busy ? (mode === "login" ? "Entrando..." : "Criando...") : "Continuar"}
           </AppButton>
+          {cloudEnabled && paidAccessRequired && mode === "signup" && (
+            <AppLinkButton href={checkoutUrl} variant="secondary" icon={<ArrowRight size={18} />}>
+              Comprar na Kiwify
+            </AppLinkButton>
+          )}
+          {cloudEnabled && (
+            <AppButton
+              type="button"
+              variant="ghost"
+              onClick={() => onModeChange(mode === "login" ? "signup" : "login")}
+            >
+              {mode === "login" ? "Comprei e quero criar minha senha" : "Ja tenho senha"}
+            </AppButton>
+          )}
         </form>
       </div>
     </main>
@@ -3647,6 +3733,42 @@ function AppButton({
       {children}
       {icon}
     </button>
+  );
+}
+
+function AppLinkButton({
+  variant = "primary",
+  icon,
+  className,
+  children,
+  href
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  variant?: ButtonVariant;
+  icon?: React.ReactNode;
+  href: string;
+}) {
+  const variantClass: Record<ButtonVariant, string> = {
+    primary: "bg-ink text-white shadow-soft hover:bg-ocean",
+    secondary: "border border-ocean/10 bg-white text-ocean shadow-sm hover:bg-mist",
+    ghost: "bg-transparent text-ocean hover:bg-mist",
+    danger: "bg-danger text-white shadow-sm hover:brightness-95"
+  };
+  const isExternal = href.startsWith("http");
+
+  return (
+    <a
+      href={href}
+      target={isExternal ? "_blank" : undefined}
+      rel={isExternal ? "noreferrer" : undefined}
+      className={cn(
+        "flex min-h-12 w-full items-center justify-center gap-2 rounded-[8px] px-4 py-3 text-sm font-black transition",
+        variantClass[variant],
+        className
+      )}
+    >
+      {children}
+      {icon}
+    </a>
   );
 }
 

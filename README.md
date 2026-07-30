@@ -22,6 +22,7 @@ Aplicativo PWA mobile-first em portugues do Brasil para ajudar pessoas a organiz
 - Perfil, exportacao, limpeza de dados e saida da conta online.
 - Manifesto PWA, icones e service worker.
 - Pagina de vendas em `/vendas`, pronta para receber link de checkout.
+- Controle de acesso pago: cadastro online pode exigir compra aprovada pelo e-mail da Kiwify.
 - Arquitetura preparada para Supabase e OpenAI.
 
 ## Modo local
@@ -37,9 +38,10 @@ Para ativar conta online e banco em nuvem, configure estas variaveis no ambiente
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-No Supabase, rode o arquivo `organiza-plus-supabase-schema.sql` no SQL Editor para criar as tabelas e politicas de seguranca.
+No Supabase, rode o arquivo `organiza-plus-supabase-schema.sql` no SQL Editor para criar as tabelas e politicas de seguranca. Se o banco ja estiver criado e voce precisar apenas ligar a Kiwify, rode o arquivo separado `organiza-plus-kiwify-access.sql`.
 
 Depois de adicionar as variaveis na Vercel, faca um novo deploy para as mudancas entrarem no site publicado.
 
@@ -51,13 +53,29 @@ A pagina comercial fica em:
 /vendas
 ```
 
-Enquanto o checkout nao estiver conectado, o botao da oferta abre o app de teste. Para ligar Kiwify, Hotmart ou outro checkout, configure:
+Enquanto o checkout nao estiver conectado, o botao da oferta abre o app de teste. Para ligar a Kiwify:
+
+1. Crie o produto na Kiwify.
+2. Copie o link do checkout.
+3. Na Vercel, configure:
 
 ```bash
+NEXT_PUBLIC_KIWIFY_CHECKOUT_URL=
 NEXT_PUBLIC_CHECKOUT_URL=
+NEXT_PUBLIC_REQUIRE_PAID_ACCESS=true
+SUPABASE_SERVICE_ROLE_KEY=
+KIWIFY_WEBHOOK_SECRET=
 ```
 
-Depois de adicionar essa variavel na Vercel, faca um novo deploy.
+4. Na Kiwify, configure o webhook/postback para:
+
+```text
+https://SEU-DOMINIO/api/kiwify/webhook
+```
+
+Quando uma compra aprovada chegar, o webhook salva o e-mail na tabela `purchase_access`. O cadastro online do app so libera se o usuario usar o mesmo e-mail da compra.
+
+Depois de adicionar essas variaveis na Vercel, faca um novo deploy.
 
 ## Rodar localmente
 
