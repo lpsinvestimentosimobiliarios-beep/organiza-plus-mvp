@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SalesCountdown from "./SalesCountdown";
 import {
   ArrowRight,
+  AlertTriangle,
   BadgeCheck,
   Brain,
   CalendarDays,
@@ -28,6 +30,7 @@ export const metadata: Metadata = {
 
 const checkoutUrl = process.env.NEXT_PUBLIC_CHECKOUT_URL || "/";
 const checkoutReady = Boolean(process.env.NEXT_PUBLIC_CHECKOUT_URL);
+const launchOfferEndsAt = "2026-09-30T23:59:59-03:00";
 
 const benefits = [
   {
@@ -159,11 +162,22 @@ function Hero() {
 
 function HeroPriceCard() {
   return (
-    <div className="mt-6 w-full max-w-md rounded-[8px] border border-white/16 bg-white p-5 text-ink shadow-soft">
-      <p className="text-xs font-black uppercase text-aqua">Oferta de lançamento</p>
+    <div className="mt-6 w-full max-w-md rounded-[8px] border border-danger/30 bg-white p-5 text-ink shadow-soft">
+      <p className="inline-flex rounded-[8px] bg-danger px-3 py-1.5 text-xs font-black uppercase text-white">
+        Oferta de lançamento beta
+      </p>
       <div className="mt-3 flex flex-wrap items-end gap-x-2 gap-y-1">
-        <span className="text-4xl font-black">R$ 37</span>
+        <span className="text-4xl font-black text-danger">R$ 37</span>
         <span className="pb-1 text-sm font-bold text-ocean/58">pagamento único inicial</span>
+      </div>
+      <div className="mt-4 flex gap-3 rounded-[8px] border border-danger/25 bg-danger/10 p-3">
+        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
+        <p className="text-xs font-bold leading-5 text-ocean/74">
+          Atenção: oferta de lançamento da versão beta. Valores após esta data mudarão.
+        </p>
+      </div>
+      <div className="mt-3">
+        <SalesCountdown targetIso={launchOfferEndsAt} />
       </div>
       <div className="mt-4 grid gap-2">
         <PriceLine text="Acesso ao Organiza+ Dívidas" />
@@ -172,7 +186,7 @@ function HeroPriceCard() {
       </div>
       {!checkoutReady && (
         <p className="mt-4 rounded-[8px] border border-amber/30 bg-amber/12 p-3 text-xs font-bold leading-5 text-ocean/72">
-          Checkout ainda não conectado. Por enquanto, o botão abre o app para teste interno.
+          Checkout ainda não conectado. O botão já está preparado para receber o pagamento.
         </p>
       )}
       <CtaButton className="mt-4 w-full" />
@@ -394,7 +408,7 @@ function Offer() {
     <section id="oferta" className="bg-white py-14 sm:py-20">
       <div className="mx-auto grid max-w-6xl gap-8 px-5 sm:grid-cols-[1fr_0.85fr] sm:px-8">
         <div>
-          <p className="text-sm font-black uppercase text-aqua">Oferta de lançamento</p>
+          <p className="text-sm font-black uppercase text-danger">Oferta de lançamento beta</p>
           <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">
             Organiza+ Dívidas por um preço fácil de testar.
           </h2>
@@ -412,11 +426,22 @@ function Offer() {
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-ocean/12 bg-cloud p-5 shadow-soft">
-          <p className="text-sm font-black text-ocean/62">Acesso de lançamento</p>
+        <div className="rounded-[8px] border border-danger/25 bg-cloud p-5 shadow-soft">
+          <p className="inline-flex rounded-[8px] bg-danger px-3 py-1.5 text-xs font-black uppercase text-white">
+            Oferta de lançamento beta
+          </p>
           <div className="mt-4 flex items-end gap-2">
-            <span className="text-5xl font-black">R$ 37</span>
+            <span className="text-5xl font-black text-danger">R$ 37</span>
             <span className="pb-2 text-sm font-bold text-ocean/58">pagamento único inicial</span>
+          </div>
+          <div className="mt-4 flex gap-3 rounded-[8px] border border-danger/25 bg-danger/10 p-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-danger" />
+            <p className="text-sm font-bold leading-6 text-ocean/74">
+              Atenção: oferta de lançamento da versão beta. Valores após esta data mudarão.
+            </p>
+          </div>
+          <div className="mt-4">
+            <SalesCountdown targetIso={launchOfferEndsAt} />
           </div>
           <div className="mt-5 space-y-3">
             <PriceLine text="App Organiza+ Dívidas" />
@@ -428,7 +453,7 @@ function Offer() {
 
           {!checkoutReady && (
             <div className="mt-5 rounded-[8px] border border-amber/30 bg-amber/12 p-3 text-sm leading-6 text-ocean/76">
-              Checkout ainda não conectado. Por enquanto, o botão abre o app para teste interno.
+              Checkout ainda não conectado. O botão já está preparado para receber o pagamento.
             </div>
           )}
 
@@ -482,7 +507,7 @@ function CtaButton({ className = "" }: { className?: string }) {
       href={checkoutUrl}
       className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-leaf px-5 text-sm font-black text-white shadow-soft transition hover:bg-[#1f9f69] ${className}`}
     >
-      {checkoutReady ? "Quero meu acesso" : "Abrir app de teste"}
+      Compre aqui
       <ArrowRight size={17} />
     </Link>
   );
