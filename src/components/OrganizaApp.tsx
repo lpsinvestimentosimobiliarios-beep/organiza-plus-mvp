@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   Sparkles,
   Smartphone,
+  Star,
   Target,
   Trash2,
   Trophy,
@@ -87,6 +88,7 @@ type AssistantMessage = {
 };
 
 type JourneyStepState = "done" | "current" | "future" | "locked";
+type FinancialPanel = "income" | "expenses" | "debts";
 
 type JourneyStep = {
   id: string;
@@ -95,6 +97,10 @@ type JourneyStep = {
   icon: LucideIcon;
   tone: "ink" | "blue" | "green" | "orange" | "muted";
   state: JourneyStepState;
+  xp: number;
+  building: "hall" | "income" | "expenses" | "debts" | "plan" | "goal";
+  panel?: FinancialPanel;
+  target?: ViewKey;
   debtId?: string;
 };
 
@@ -1413,6 +1419,12 @@ function OnboardingScreen({
                 />
                 <ExpenseList
                   expenses={data.expenses}
+                  onUpdate={(updatedExpense) =>
+                    updateData((previous) => ({
+                      ...previous,
+                      expenses: previous.expenses.map((expense) => (expense.id === updatedExpense.id ? updatedExpense : expense))
+                    }))
+                  }
                   onRemove={(id) =>
                     updateData((previous) => ({
                       ...previous,
@@ -1454,6 +1466,12 @@ function OnboardingScreen({
                 />
                 <DebtList
                   debts={data.debts}
+                  onUpdate={(updatedDebt) =>
+                    updateData((previous) => ({
+                      ...previous,
+                      debts: previous.debts.map((debt) => (debt.id === updatedDebt.id ? updatedDebt : debt))
+                    }))
+                  }
                   onRemove={(id) =>
                     updateData((previous) => ({
                       ...previous,
@@ -1715,14 +1733,40 @@ function MapView({
   updateData: (updater: AppData | ((previous: AppData) => AppData)) => void;
   onNavigate: (view: ViewKey) => void;
 }) {
-  const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [mapResetKey, setMapResetKey] = useState(0);
-  const selectedDebt = data.debts.find((debt) => debt.id === selectedDebtId) ?? null;
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  const journey = useMemo(() => calculateJourney(data), [data]);
   const journeySteps = useMemo(() => buildJourneySteps(data), [data]);
-  const journeyHeight = Math.max(560, journeySteps.length * 116 + 56);
-  const journeyPoints = useMemo(() => buildJourneyPoints(journeySteps.length), [journeySteps.length]);
+  const journeyWidth = 660;
+  const journeyHeight = Math.max(780, journeySteps.length * 150 + 120);
+  const journeyPoints = useMemo(() => buildJourneyPoints(journeySteps.length, journeyWidth), [journeySteps.length, journeyWidth]);
   const journeyPath = useMemo(() => buildJourneyPath(journeyPoints), [journeyPoints]);
   const completedSteps = journeySteps.filter((step) => step.state === "done").length;
+  const selectedStep = journeySteps.find((step) => step.id === selectedStepId) ?? null;
+  const selectedDebt = selectedStep?.debtId ? data.debts.find((debt) => debt.id === selectedStep.debtId) ?? null : null;
+  const selectedPanel = selectedStep?.panel;
+
+  useEffect(() => {
+    if (!selectedStepId) return;
+    const timer = window.setTimeout(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [selectedStepId]);
+
+  const handleStepClick = (step: JourneyStep) => {
+    if (step.state === "locked") return;
+    setSelectedStepId(step.id);
+    if (step.target) onNavigate(step.target);
+  };
+
+  const updateDebt = (updatedDebt: Debt) => {
+    updateData((previous) => ({
+      ...previous,
+      debts: previous.debts.map((debt) => (debt.id === updatedDebt.id ? updatedDebt : debt))
+    }));
+  };
 
   return (
     <div className="space-y-4">
@@ -1730,16 +1774,18 @@ function MapView({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-aqua">Caminho financeiro</p>
-            <h2 className="mt-1 text-xl font-black">Avance por fases até quitar suas dívidas.</h2>
-            <p className="mt-1 text-sm text-ocean/60">Toque em uma dívida para ver o detalhe e registrar pagamentos.</p>
+            <h2 className="mt-1 text-xl font-black">Sua vila financeira cresce com seu progresso.</h2>
+            <p className="mt-1 text-sm text-ocean/60">Toque em uma casa para abrir a area dela, editar dados e registrar avancos.</p>
           </div>
-          <Badge tone="green">{completedSteps}/{journeySteps.length}</Badge>
+          <Badge tone="green">
+            Nivel {journey.level} | {journey.xp} XP | {completedSteps}/{journeySteps.length}
+          </Badge>
         </div>
       </section>
 
       <section className="rounded-[8px] border border-ocean/8 bg-[linear-gradient(180deg,#FFFFFF,#EEF7F7)] p-3 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="text-xs font-bold text-ocean/58">Arraste o caminho para ver todas as fases.</p>
+          <p className="text-xs font-bold text-ocean/58">Arraste a vila para cima, baixo e lados.</p>
           <button
             type="button"
             onClick={() => setMapResetKey((current) => current + 1)}
@@ -1749,7 +1795,7 @@ function MapView({
             Centralizar
           </button>
         </div>
-        <div className="relative h-[68vh] min-h-[540px] max-h-[760px] touch-none overflow-hidden rounded-[8px] border border-ocean/6 bg-[radial-gradient(circle_at_50%_0%,rgba(33,183,166,0.18),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.86),rgba(238,247,247,0.94))]">
+        <div className="relative h-[72vh] min-h-[620px] max-h-[920px] touch-none overflow-hidden rounded-[8px] border border-ocean/6 bg-[radial-gradient(circle_at_50%_0%,rgba(33,183,166,0.18),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.86),rgba(238,247,247,0.94))]">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,51,95,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,51,95,0.035)_1px,transparent_1px)] bg-[size:38px_38px]" />
           <div className="absolute left-1/2 top-8 -translate-x-1/2">
             <motion.div
@@ -1757,21 +1803,20 @@ function MapView({
               drag
               dragMomentum={false}
               className="relative cursor-grab active:cursor-grabbing"
-              style={{ width: 320, height: journeyHeight }}
+              style={{ width: journeyWidth, height: journeyHeight }}
               initial={{ opacity: 0, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.24 }}
             >
-              <JourneyPathSvg path={journeyPath} height={journeyHeight} />
+              <JourneyPathSvg path={journeyPath} width={journeyWidth} height={journeyHeight} />
+              <VillageDecorations level={journey.level} width={journeyWidth} height={journeyHeight} />
               {journeySteps.map((step, index) => (
                 <JourneyStepButton
                   key={step.id}
                   step={step}
                   point={journeyPoints[index]}
-                  active={step.debtId === selectedDebtId}
-                  onClick={() => {
-                    if (step.debtId) setSelectedDebtId(step.debtId);
-                  }}
+                  active={step.id === selectedStepId}
+                  onClick={() => handleStepClick(step)}
                 />
               ))}
             </motion.div>
@@ -1785,6 +1830,7 @@ function MapView({
       <AnimatePresence>
         {selectedDebt && (
           <motion.section
+            ref={detailRef}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
@@ -1795,11 +1841,15 @@ function MapView({
                 <p className="text-xs font-bold uppercase text-aqua">{selectedDebt.creditor}</p>
                 <h2 className="mt-1 text-xl font-black">{selectedDebt.name}</h2>
               </div>
-              <IconButton label="Fechar" icon={X} onClick={() => setSelectedDebtId(null)} />
+              <IconButton label="Fechar" icon={X} onClick={() => setSelectedStepId(null)} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <MetricCard icon={AlertTriangle} label="Restante" value={formatMoney(remainingDebt(selectedDebt))} tone={selectedDebt.urgent ? "orange" : "blue"} />
               <MetricCard icon={DollarSign} label="Parcela" value={formatMoney(selectedDebt.minimumPayment)} tone="green" />
+            </div>
+            <div className="mt-4 rounded-[8px] border border-ocean/8 bg-mist/70 p-3">
+              <p className="mb-3 text-sm font-black text-ocean">Editar esta divida</p>
+              <DebtEditForm debt={selectedDebt} onSave={updateDebt} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <AppButton variant="secondary" onClick={() => onNavigate("plan")}>
@@ -1813,6 +1863,25 @@ function MapView({
               </AppButton>
             </div>
           </motion.section>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedPanel && !selectedDebt && (
+          <motion.div
+            ref={detailRef}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+          >
+            <FinancialDataSection
+              data={data}
+              updateData={updateData}
+              initialPanel={selectedPanel}
+              title={financialPanelTitle(selectedPanel)}
+              description="Casa da vila aberta pelo mapa. Ajuste os dados e o caminho ganha progresso."
+            />
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -2578,18 +2647,38 @@ function ProfileView({
   );
 }
 
+function financialPanelTitle(panel: FinancialPanel) {
+  const titles: Record<FinancialPanel, string> = {
+    income: "Casa da renda",
+    expenses: "Casa dos gastos",
+    debts: "Casa das dividas"
+  };
+
+  return titles[panel];
+}
+
 function FinancialDataSection({
   data,
-  updateData
+  updateData,
+  initialPanel = "debts",
+  title = "Ajustar base financeira",
+  description
 }: {
   data: AppData;
   updateData: (updater: AppData | ((previous: AppData) => AppData)) => void;
+  initialPanel?: FinancialPanel;
+  title?: string;
+  description?: string;
 }) {
-  const [panel, setPanel] = useState<"income" | "expenses" | "debts">("debts");
+  const [panel, setPanel] = useState<FinancialPanel>(initialPanel);
+
+  useEffect(() => {
+    setPanel(initialPanel);
+  }, [initialPanel]);
 
   return (
     <section className="rounded-[8px] border border-ocean/8 bg-white p-4 shadow-sm">
-      <SectionTitle eyebrow="Dados" title="Ajustar base financeira" />
+      <SectionTitle eyebrow="Dados" title={title} description={description} />
       <div className="mt-4 grid grid-cols-3 gap-2">
         {[
           ["income", "Renda"],
@@ -2599,7 +2688,7 @@ function FinancialDataSection({
           <button
             key={key}
             type="button"
-            onClick={() => setPanel(key as "income" | "expenses" | "debts")}
+            onClick={() => setPanel(key as FinancialPanel)}
             className={cn(
               "rounded-[8px] px-3 py-2 text-sm font-bold",
               panel === key ? "bg-ink text-white" : "bg-mist text-ocean"
@@ -2656,6 +2745,12 @@ function FinancialDataSection({
             />
             <ExpenseList
               expenses={data.expenses}
+              onUpdate={(updatedExpense) =>
+                updateData((previous) => ({
+                  ...previous,
+                  expenses: previous.expenses.map((expense) => (expense.id === updatedExpense.id ? updatedExpense : expense))
+                }))
+              }
               onRemove={(id) =>
                 updateData((previous) => ({
                   ...previous,
@@ -2678,6 +2773,12 @@ function FinancialDataSection({
             />
             <DebtList
               debts={data.debts}
+              onUpdate={(updatedDebt) =>
+                updateData((previous) => ({
+                  ...previous,
+                  debts: previous.debts.map((debt) => (debt.id === updatedDebt.id ? updatedDebt : debt))
+                }))
+              }
               onRemove={(id) =>
                 updateData((previous) => ({
                   ...previous,
@@ -2730,7 +2831,15 @@ function ExpenseForm({ onAdd }: { onAdd: (expense: Expense) => void }) {
   );
 }
 
-function ExpenseList({ expenses, onRemove }: { expenses: Expense[]; onRemove: (id: string) => void }) {
+function ExpenseList({
+  expenses,
+  onRemove,
+  onUpdate
+}: {
+  expenses: Expense[];
+  onRemove: (id: string) => void;
+  onUpdate: (expense: Expense) => void;
+}) {
   if (expenses.length === 0) {
     return <EmptyState icon={Home} title="Sem gastos cadastrados" description="Adicione aluguel, mercado, energia ou outros gastos fixos." compact />;
   }
@@ -2745,6 +2854,19 @@ function ExpenseList({ expenses, onRemove }: { expenses: Expense[]; onRemove: (i
             <p className="text-xs text-ocean/60">Dia {expense.dueDay} • {expense.essential ? "Essencial" : "Flexível"}</p>
           </div>
           <p className="text-sm font-black">{formatMoney(expense.amount)}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const nextAmount = window.prompt("Novo valor do gasto", String(expense.amount));
+              if (nextAmount === null) return;
+              const amount = moneyToNumber(nextAmount);
+              if (amount <= 0) return;
+              onUpdate({ ...expense, amount });
+            }}
+            className="rounded-full bg-white px-3 py-2 text-xs font-black text-ocean shadow-sm"
+          >
+            Editar
+          </button>
           <IconButton label="Remover gasto" icon={Trash2} onClick={() => onRemove(expense.id)} />
         </div>
       ))}
@@ -2811,7 +2933,74 @@ function DebtForm({ onAdd }: { onAdd: (debt: Debt) => void }) {
   );
 }
 
-function DebtList({ debts, onRemove }: { debts: Debt[]; onRemove: (id: string) => void }) {
+function DebtEditForm({ debt, onSave }: { debt: Debt; onSave: (debt: Debt) => void }) {
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const total = moneyToNumber(form.get("total"));
+        const safeTotal = total > 0 ? total : debt.total;
+        const paid = Math.min(safeTotal, Math.max(0, moneyToNumber(form.get("paid"))));
+
+        onSave({
+          ...debt,
+          name: textValue(form.get("name")) || debt.name,
+          creditor: textValue(form.get("creditor")) || debt.creditor,
+          category: (form.get("category") || debt.category) as DebtCategory,
+          total: safeTotal,
+          paid,
+          minimumPayment: Math.max(0, moneyToNumber(form.get("minimumPayment"))),
+          interestRate: Math.max(0, Number(form.get("interestRate")) || 0),
+          dueDay: Math.max(1, Math.min(28, Number(form.get("dueDay")) || debt.dueDay)),
+          urgent: form.get("urgent") === "on",
+          notes: textValue(form.get("notes"))
+        });
+      }}
+    >
+      <input className="field" name="name" defaultValue={debt.name} placeholder="Nome da divida" />
+      <input className="field" name="creditor" defaultValue={debt.creditor} placeholder="Credor" />
+      <div className="grid grid-cols-2 gap-3">
+        <input className="field" name="total" inputMode="decimal" defaultValue={debt.total || ""} placeholder="Total" />
+        <input className="field" name="paid" inputMode="decimal" defaultValue={debt.paid || ""} placeholder="Ja pago" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <input className="field" name="minimumPayment" inputMode="decimal" defaultValue={debt.minimumPayment || ""} placeholder="Parcela" />
+        <input className="field" name="interestRate" inputMode="decimal" defaultValue={debt.interestRate || ""} placeholder="Juros %" />
+      </div>
+      <div className="grid grid-cols-[1fr_88px] gap-3">
+        <select className="field" name="category" defaultValue={debt.category}>
+          <option value="cartao">Cartao</option>
+          <option value="emprestimo">Emprestimo</option>
+          <option value="conta">Conta</option>
+          <option value="financiamento">Financiamento</option>
+          <option value="loja">Loja</option>
+          <option value="outro">Outro</option>
+        </select>
+        <input className="field" name="dueDay" type="number" min={1} max={28} defaultValue={debt.dueDay} placeholder="Dia" />
+      </div>
+      <label className="flex items-center gap-2 rounded-[8px] bg-white px-3 py-3 text-sm font-bold text-ocean">
+        <input name="urgent" type="checkbox" defaultChecked={debt.urgent} className="h-4 w-4 accent-amber" />
+        Prioridade urgente
+      </label>
+      <textarea className="field min-h-20 resize-none" name="notes" defaultValue={debt.notes} placeholder="Observacoes" />
+      <AppButton type="submit" variant="secondary" icon={<CheckCircle2 size={18} />}>
+        Salvar divida
+      </AppButton>
+    </form>
+  );
+}
+
+function DebtList({
+  debts,
+  onRemove,
+  onUpdate
+}: {
+  debts: Debt[];
+  onRemove: (id: string) => void;
+  onUpdate: (debt: Debt) => void;
+}) {
   if (debts.length === 0) {
     return <EmptyState icon={AlertTriangle} title="Sem dívidas cadastradas" description="Adicione pelo menos uma dívida para gerar a árvore." compact />;
   }
@@ -2825,6 +3014,18 @@ function DebtList({ debts, onRemove }: { debts: Debt[]; onRemove: (id: string) =
             <p className="truncate text-sm font-black">{debt.name}</p>
             <p className="text-xs text-ocean/60">{debt.creditor} • resta {formatMoney(remainingDebt(debt))}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              const nextPaid = window.prompt("Valor ja pago nesta divida", String(debt.paid));
+              if (nextPaid === null) return;
+              const paid = Math.min(debt.total, Math.max(0, moneyToNumber(nextPaid)));
+              onUpdate({ ...debt, paid });
+            }}
+            className="rounded-full bg-white px-3 py-2 text-xs font-black text-ocean shadow-sm"
+          >
+            Editar
+          </button>
           <IconButton label="Remover dívida" icon={Trash2} onClick={() => onRemove(debt.id)} />
         </div>
       ))}
@@ -2920,9 +3121,9 @@ function CalendarList({ items, compact = false }: { items: CalendarItem[]; compa
   );
 }
 
-function JourneyPathSvg({ path, height }: { path: string; height: number }) {
+function JourneyPathSvg({ path, width, height }: { path: string; width: number; height: number }) {
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 320 ${height}`} aria-hidden="true">
+    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
       <defs>
         <linearGradient id="journey-path-gradient" x1="0" x2="1" y1="0" y2="1">
           <stop offset="0%" stopColor="#21B7A6" />
@@ -2930,18 +3131,49 @@ function JourneyPathSvg({ path, height }: { path: string; height: number }) {
           <stop offset="100%" stopColor="#F59E5B" />
         </linearGradient>
       </defs>
-      <path d={path} fill="none" stroke="rgba(18,51,95,0.08)" strokeLinecap="round" strokeWidth="18" />
+      <path d={path} fill="none" stroke="rgba(18,51,95,0.08)" strokeLinecap="round" strokeWidth="34" />
+      <path d={path} fill="none" stroke="rgba(255,255,255,0.82)" strokeLinecap="round" strokeWidth="22" />
       <motion.path
         d={path}
         fill="none"
         stroke="url(#journey-path-gradient)"
         strokeLinecap="round"
-        strokeWidth="8"
+        strokeWidth="10"
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
         transition={{ duration: 0.85 }}
       />
     </svg>
+  );
+}
+
+function VillageDecorations({ level, width, height }: { level: number; width: number; height: number }) {
+  const flowerCount = Math.min(30, 6 + Math.floor(level / 2));
+  const hasSafe = level >= 1000;
+
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {Array.from({ length: flowerCount }).map((_, index) => {
+        const left = 34 + ((index * 89) % Math.max(width - 72, 1));
+        const top = 72 + ((index * 131) % Math.max(height - 138, 1));
+
+        return (
+          <span key={index} className="absolute grid h-6 w-6 place-items-center" style={{ left, top }}>
+            <span className="absolute h-2 w-2 rounded-full bg-amber/75" />
+            <span className="absolute h-1.5 w-5 rounded-full bg-leaf/50" />
+            <span className="absolute h-5 w-1.5 rounded-full bg-leaf/45" />
+          </span>
+        );
+      })}
+      {level >= 8 && <span className="absolute left-12 top-10 h-14 w-14 rounded-full border-4 border-white bg-aqua/12 shadow-sm" />}
+      {level >= 14 && <span className="absolute bottom-24 right-14 h-16 w-20 rounded-[18px] border-4 border-white bg-leaf/12 shadow-sm" />}
+      {hasSafe && (
+        <span className="absolute right-20 top-24 grid h-16 w-16 place-items-center rounded-[16px] border-4 border-amber bg-white shadow-soft">
+          <span className="absolute -top-4 h-8 w-10 rounded-t-[16px] border-4 border-amber bg-white" />
+          <PiggyBank size={26} className="relative z-10 text-amber" />
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -2957,19 +3189,27 @@ function JourneyStepButton({
   onClick: () => void;
 }) {
   const Icon = step.icon;
-  const interactive = Boolean(step.debtId);
+  const interactive = Boolean(step.debtId || step.panel || step.target);
+  const starCount = step.state === "done" ? Math.min(3, Math.max(1, Math.ceil(step.xp / 120))) : 0;
   const stateLabel: Record<JourneyStepState, string> = {
     done: "Concluído",
     current: "Agora",
     future: "Próximo",
     locked: "Bloqueado"
   };
-  const bubbleClass = {
+  const houseClass = {
     ink: "border-ink bg-ink text-white shadow-glow",
     blue: "border-white bg-white text-ocean shadow-soft",
     green: "border-leaf bg-leaf text-white shadow-soft",
     orange: "border-amber bg-amber text-white shadow-soft",
     muted: "border-white bg-white text-ocean/42 shadow-sm"
+  }[step.tone];
+  const roofClass = {
+    ink: "border-ink bg-ocean",
+    blue: "border-ocean/20 bg-mist",
+    green: "border-leaf bg-leaf/80",
+    orange: "border-amber bg-amber/85",
+    muted: "border-ocean/10 bg-white"
   }[step.tone];
   const pillClass = {
     done: "bg-leaf text-white",
@@ -2977,6 +3217,15 @@ function JourneyStepButton({
     future: "bg-white text-ocean",
     locked: "bg-ocean/8 text-ocean/48"
   }[step.state];
+  const sizeClass = {
+    hall: "h-[78px] w-[104px]",
+    income: "h-[70px] w-[92px]",
+    expenses: "h-[70px] w-[92px]",
+    debts: "h-[74px] w-[98px]",
+    plan: "h-[70px] w-[92px]",
+    goal: "h-[78px] w-[104px]"
+  }[step.building];
+  const doorClass = step.tone === "blue" || step.tone === "muted" ? "bg-ocean/16" : "bg-white/28";
 
   return (
     <motion.button
@@ -2984,42 +3233,55 @@ function JourneyStepButton({
       disabled={!interactive}
       onClick={onClick}
       className={cn(
-        "absolute flex w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center",
-        interactive ? "cursor-pointer" : "cursor-default"
+        "absolute flex w-40 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center",
+        interactive ? "cursor-pointer" : "cursor-default opacity-75"
       )}
       style={{ left: point.x, top: point.y }}
       initial={{ opacity: 0, y: 18, scale: 0.92 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.38 }}
+      whileHover={interactive ? { y: -3 } : undefined}
       whileTap={interactive ? { scale: 0.96 } : undefined}
     >
-      <span className={cn("relative grid h-20 w-20 place-items-center rounded-full border-4", bubbleClass, active && "ring-4 ring-aqua/25")}>
+      <span className="relative flex h-28 w-36 items-end justify-center">
+        <span className={cn("absolute top-2 h-16 w-16 rotate-45 rounded-[12px] border-4", roofClass)} />
+        <span className={cn("relative grid place-items-center rounded-[14px] border-4", sizeClass, houseClass, active && "ring-4 ring-aqua/25")}>
+          <Icon size={24} />
+          <span className={cn("absolute bottom-2 h-5 w-4 rounded-t-full", doorClass)} />
+          {step.building === "goal" && <span className="absolute right-3 top-3 h-3 w-3 rounded-full bg-amber" />}
+        </span>
         {step.state === "done" && (
-          <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-leaf text-white shadow-sm">
+          <span className="absolute right-2 top-3 grid h-7 w-7 place-items-center rounded-full bg-leaf text-white shadow-sm">
             <CheckCircle2 size={16} />
           </span>
         )}
         {step.state === "locked" && (
-          <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-ocean/10 text-ocean/45">
+          <span className="absolute right-2 top-3 grid h-7 w-7 place-items-center rounded-full bg-ocean/10 text-ocean/45">
             <Lock size={15} />
           </span>
         )}
-        <Icon size={28} />
+        {starCount > 0 && (
+          <span className="absolute -bottom-1 flex gap-0.5 rounded-full bg-white px-2 py-1 shadow-sm">
+            {Array.from({ length: starCount }).map((_, index) => (
+              <Star key={index} size={12} className="fill-amber text-amber" />
+            ))}
+          </span>
+        )}
       </span>
-      <span className="mt-2 max-w-[128px] text-sm font-black leading-4 text-ink">{step.label}</span>
-      <span className="mt-1 max-h-8 max-w-[132px] overflow-hidden text-[11px] leading-4 text-ocean/58">{step.sublabel}</span>
+      <span className="mt-2 max-w-[138px] text-sm font-black leading-4 text-ink">{step.label}</span>
+      <span className="mt-1 max-h-8 max-w-[144px] overflow-hidden text-[11px] leading-4 text-ocean/58">{step.sublabel}</span>
       <span className={cn("mt-2 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide", pillClass)}>
-        {stateLabel[step.state]}
+        {step.xp > 0 ? `${step.xp} XP` : stateLabel[step.state]}
       </span>
     </motion.button>
   );
 }
 
-function buildJourneyPoints(count: number): JourneyPoint[] {
-  const xPositions = [160, 82, 238, 92, 228, 80, 240, 106, 214, 160];
+function buildJourneyPoints(count: number, width = 520): JourneyPoint[] {
+  const xPositions = [width * 0.5, width * 0.28, width * 0.72, width * 0.22, width * 0.78, width * 0.34, width * 0.66, width * 0.48];
   return Array.from({ length: count }, (_, index) => ({
-    x: xPositions[index % xPositions.length],
-    y: 62 + index * 116
+    x: Math.round(xPositions[index % xPositions.length]),
+    y: 92 + index * 142
   }));
 }
 
@@ -3060,7 +3322,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       sublabel: data.profile?.name ? `Olá, ${data.profile.name}` : "Crie seu perfil",
       icon: Leaf,
       tone: "ink",
-      state: data.profile ? "done" : "current"
+      state: data.profile ? "done" : "current",
+      xp: data.profile ? 50 : 0,
+      building: "hall",
+      target: "profile"
     },
     {
       id: "income",
@@ -3068,7 +3333,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       sublabel: hasIncome ? formatMoney(data.income.monthly) : "Cadastre sua renda",
       icon: WalletCards,
       tone: "green",
-      state: hasIncome ? "done" : "current"
+      state: hasIncome ? "done" : "current",
+      xp: hasIncome ? 60 : 0,
+      building: "income",
+      panel: "income"
     },
     {
       id: "expenses",
@@ -3076,7 +3344,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       sublabel: hasExpenses ? formatMoney(totalExpenses(data)) : "Liste suas contas",
       icon: Home,
       tone: "blue",
-      state: hasExpenses ? "done" : "current"
+      state: hasExpenses ? "done" : "current",
+      xp: hasExpenses ? Math.max(40, data.expenses.length * 20) : 0,
+      building: "expenses",
+      panel: "expenses"
     },
     {
       id: "debts",
@@ -3084,7 +3355,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       sublabel: hasDebts ? formatMoney(totalRemaining(data.debts)) : "Adicione a primeira",
       icon: AlertTriangle,
       tone: hasDebts ? "orange" : "muted",
-      state: hasDebts ? "done" : "current"
+      state: hasDebts ? "done" : "current",
+      xp: hasDebts ? data.debts.length * 50 : 0,
+      building: "debts",
+      panel: "debts"
     },
     {
       id: "plan",
@@ -3092,7 +3366,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       sublabel: hasCapacity ? strategyLabel(data.strategy) : "Defina sua capacidade",
       icon: ClipboardCheck,
       tone: "blue",
-      state: hasCapacity ? "done" : "current"
+      state: hasCapacity ? "done" : "current",
+      xp: hasCapacity ? 80 : 0,
+      building: "plan",
+      target: "plan"
     }
   ];
 
@@ -3105,7 +3382,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
           sublabel: "Cadastre para começar",
           icon: Plus,
           tone: "orange",
-          state: "current"
+          state: "current",
+          xp: 0,
+          building: "debts",
+          panel: "debts"
         }
       ];
 
@@ -3119,6 +3399,8 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
       icon: item.debt.urgent ? AlertTriangle : WalletCards,
       tone: done ? "green" : item.debt.urgent ? "orange" : "blue",
       state: done ? "done" : index === 0 ? "current" : "future",
+      xp: done ? 250 : Math.min(120, Math.round(progressRatio([item.debt]) * 120)),
+      building: "debts",
       debtId: item.debt.id
     };
   });
@@ -3129,7 +3411,10 @@ function buildJourneySteps(data: AppData): JourneyStep[] {
     sublabel: data.onboarding.firstGoal || "Seu próximo plano",
     icon: Target,
     tone: allDebtsDone ? "green" : "muted",
-    state: allDebtsDone ? "done" : "locked"
+    state: allDebtsDone ? "done" : "locked",
+    xp: allDebtsDone ? 200 : 0,
+    building: "goal",
+    target: "plan"
   };
 
   return normalizeJourneySteps([...baseSteps, ...firstDebtStep, ...debtSteps, goalStep]);
