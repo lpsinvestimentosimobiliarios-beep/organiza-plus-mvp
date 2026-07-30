@@ -21,9 +21,9 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Organiza+ Dividas | Organize suas dividas pelo celular",
+  title: "Organiza+ Dívidas | Organize suas dívidas pelo celular",
   description:
-    "Pagina de vendas do Organiza+ Dividas, o app que transforma contas, gastos e dividas em um plano visual para acompanhar pelo celular."
+    "Página de vendas do Organiza+ Dívidas, o app que transforma contas, gastos e dívidas em um plano visual para acompanhar pelo celular."
 };
 
 const checkoutUrl = process.env.NEXT_PUBLIC_CHECKOUT_URL || "/";
@@ -32,54 +32,54 @@ const checkoutReady = Boolean(process.env.NEXT_PUBLIC_CHECKOUT_URL);
 const benefits = [
   {
     icon: WalletCards,
-    title: "Clareza do que voce deve",
-    text: "Cadastre dividas, gastos e renda para enxergar sua situacao em um unico lugar."
+    title: "Clareza do que você deve",
+    text: "Cadastre dívidas, gastos e renda para enxergar sua situação em um único lugar."
   },
   {
     icon: Map,
     title: "Mapa financeiro visual",
-    text: "Veja suas dividas conectadas a um plano, sem depender de planilhas confusas."
+    text: "Veja suas dívidas conectadas a um plano, sem depender de planilhas confusas."
   },
   {
     icon: Target,
-    title: "Proximo passo simples",
-    text: "O app mostra prioridades por urgencia, menores dividas ou juros maiores."
+    title: "Próximo passo simples",
+    text: "O app mostra prioridades por urgência, menores dívidas ou juros maiores."
   },
   {
     icon: Trophy,
-    title: "Niveis e conquistas",
+    title: "Níveis e conquistas",
     text: "Ganhe XP conforme cadastra, paga e conclui etapas do seu plano."
   }
 ];
 
 const bonuses = [
-  "Kit de mensagens para negociar dividas",
+  "Kit de mensagens para negociar dívidas",
   "Desafio 30 dias no controle",
-  "Calendario antiatraso",
+  "Calendário antiatraso",
   "Guia da primeira reserva",
-  "Plano de emergencia financeira"
+  "Plano de emergência financeira"
 ];
 
 const faqs = [
   {
     question: "O Organiza+ limpa meu nome automaticamente?",
     answer:
-      "Nao. Ele ajuda voce a organizar informacoes, prioridades e rotina de pagamento. Qualquer acordo precisa ser confirmado diretamente com o credor."
+      "Não. Ele ajuda você a organizar informações, prioridades e rotina de pagamento. Qualquer acordo precisa ser confirmado diretamente com o credor."
   },
   {
     question: "Funciona no celular?",
     answer:
-      "Sim. Ele e um PWA: abre pelo navegador e pode ser adicionado a tela inicial do celular como se fosse um app."
+      "Sim. Ele é um PWA: abre pelo navegador e pode ser adicionado à tela inicial do celular como se fosse um app."
   },
   {
     question: "Preciso informar senha de banco?",
     answer:
-      "Nao. O Organiza+ nao pede senha bancaria, token, codigo do cartao ou acesso ao seu banco."
+      "Não. O Organiza+ não pede senha bancária, token, código do cartão ou acesso ao seu banco."
   },
   {
     question: "Tem mensalidade?",
     answer:
-      "A primeira oferta foi pensada como acesso de lancamento. No futuro podem existir planos extras, mas a pagina deixa isso separado."
+      "A primeira oferta foi pensada como acesso de lançamento. No futuro podem existir planos extras, mas a página deixa isso separado."
   }
 ];
 
@@ -114,7 +114,7 @@ function Hero() {
             </div>
             <div>
               <p className="text-lg font-black leading-none">Organiza+</p>
-              <p className="text-xs font-bold text-white/68">Dividas em mapa</p>
+              <p className="text-xs font-bold text-white/68">Dívidas em mapa</p>
             </div>
           </div>
           <Link
@@ -126,16 +126,16 @@ function Hero() {
           </Link>
         </header>
 
-        <div className="max-w-3xl pb-12 pt-16 sm:pb-20 sm:pt-24">
+        <div className="max-w-3xl pb-12 pt-16 sm:pb-16 sm:pt-20">
           <p className="mb-4 inline-flex items-center gap-2 rounded-[8px] border border-aqua/30 bg-aqua/12 px-3 py-2 text-sm font-black text-aqua">
             <ShieldCheck size={16} />
             Organizador financeiro visual
           </p>
           <h1 className="text-[44px] font-black leading-[0.98] sm:text-7xl">
-            Organiza+ Dividas
+            Organiza+ Dívidas
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-white/78 sm:text-xl">
-            Veja todas as suas dividas em um unico mapa, descubra o proximo passo e acompanhe sua evolucao pelo celular.
+            Veja todas as suas dívidas em um único mapa, descubra o próximo passo e acompanhe sua evolução pelo celular.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <CtaButton />
@@ -148,11 +148,38 @@ function Hero() {
             </Link>
           </div>
           <p className="mt-4 max-w-xl text-sm leading-6 text-white/58">
-            Nao e consultoria financeira. E uma ferramenta simples para organizar informacoes, prioridades e progresso.
+            Não é consultoria financeira. É uma ferramenta simples para organizar informações, prioridades e progresso.
           </p>
+          <HeroPriceCard />
         </div>
       </div>
     </section>
+  );
+}
+
+function HeroPriceCard() {
+  return (
+    <div className="mt-6 w-full max-w-md rounded-[8px] border border-white/16 bg-white p-5 text-ink shadow-soft">
+      <p className="text-xs font-black uppercase text-aqua">Oferta de lançamento</p>
+      <div className="mt-3 flex flex-wrap items-end gap-x-2 gap-y-1">
+        <span className="text-4xl font-black">R$ 37</span>
+        <span className="pb-1 text-sm font-bold text-ocean/58">pagamento único inicial</span>
+      </div>
+      <div className="mt-4 grid gap-2">
+        <PriceLine text="Acesso ao Organiza+ Dívidas" />
+        <PriceLine text="Mapa financeiro visual" />
+        <PriceLine text="Bônus de lançamento inclusos" />
+      </div>
+      {!checkoutReady && (
+        <p className="mt-4 rounded-[8px] border border-amber/30 bg-amber/12 p-3 text-xs font-bold leading-5 text-ocean/72">
+          Checkout ainda não conectado. Por enquanto, o botão abre o app para teste interno.
+        </p>
+      )}
+      <CtaButton className="mt-4 w-full" />
+      <p className="mt-3 text-center text-xs leading-5 text-ocean/54">
+        Acesso simples, valor baixo e garantia para testar com calma.
+      </p>
+    </div>
   );
 }
 
@@ -167,17 +194,17 @@ function HeroScene() {
                 <p className="text-xs font-bold text-white/60">Hoje</p>
                 <p className="text-xl font-black">Bom dia, Ana</p>
               </div>
-              <div className="rounded-[8px] bg-leaf px-3 py-2 text-xs font-black text-white">Nivel 4</div>
+              <div className="rounded-[8px] bg-leaf px-3 py-2 text-xs font-black text-white">Nível 4</div>
             </div>
             <div className="mt-5 h-3 rounded-full bg-white/12">
               <div className="h-3 w-[42%] rounded-full bg-aqua" />
             </div>
-            <p className="mt-2 text-xs text-white/62">42% da jornada concluida</p>
+            <p className="mt-2 text-xs text-white/62">42% da jornada concluída</p>
           </div>
 
           <div className="space-y-3 p-5">
-            <PreviewRow icon={ReceiptText} title="Energia" text="Vence amanha" value="R$ 168" tone="orange" />
-            <PreviewRow icon={WalletCards} title="Cartao" text="Prioridade do plano" value="R$ 420" tone="blue" />
+            <PreviewRow icon={ReceiptText} title="Energia" text="Vence amanhã" value="R$ 168" tone="orange" />
+            <PreviewRow icon={WalletCards} title="Cartão" text="Prioridade do plano" value="R$ 420" tone="blue" />
             <PreviewRow icon={PiggyBank} title="Reserva" text="Primeiro passo" value="R$ 50" tone="green" />
           </div>
 
@@ -187,9 +214,9 @@ function HeroScene() {
               <Map size={18} className="text-aqua" />
             </div>
             <div className="relative h-56">
-              <Node className="left-[35%] top-[8%] bg-ink text-white" label="Voce" />
+              <Node className="left-[35%] top-[8%] bg-ink text-white" label="Você" />
               <Node className="left-[8%] top-[42%] bg-amber text-ink" label="Gastos" />
-              <Node className="right-[8%] top-[40%] bg-aqua text-ink" label="Dividas" />
+              <Node className="right-[8%] top-[40%] bg-aqua text-ink" label="Dívidas" />
               <Node className="left-[38%] bottom-[5%] bg-leaf text-white" label="Plano" />
               <Line className="left-[42%] top-[29%] w-[34%] rotate-[28deg]" />
               <Line className="left-[22%] top-[35%] w-[28%] rotate-[-28deg]" />
@@ -197,10 +224,6 @@ function HeroScene() {
             </div>
           </div>
         </div>
-      </div>
-      <div className="absolute bottom-8 left-5 hidden max-w-sm rounded-[8px] border border-white/12 bg-white/8 p-4 text-white sm:block">
-        <p className="text-sm font-black">3 acoes para hoje</p>
-        <p className="mt-2 text-sm leading-6 text-white/64">Registrar gasto, separar pagamento e evitar novo parcelamento.</p>
       </div>
     </div>
   );
@@ -250,9 +273,9 @@ function ProofBand() {
   return (
     <section className="bg-white">
       <div className="mx-auto grid max-w-6xl gap-3 px-5 py-4 sm:grid-cols-3 sm:px-8">
-        <Proof icon={Lock} title="Sem senha bancaria" text="O usuario cadastra apenas o que deseja organizar." />
-        <Proof icon={Download} title="Instalavel no celular" text="Funciona como PWA em Android, iPhone e PC." />
-        <Proof icon={BadgeCheck} title="Dados claros" text="Modo demo e modo online sao identificados no app." />
+        <Proof icon={Lock} title="Sem senha bancária" text="O usuário cadastra apenas o que deseja organizar." />
+        <Proof icon={Download} title="Instalável no celular" text="Funciona como PWA em Android, iPhone e PC." />
+        <Proof icon={BadgeCheck} title="Dados claros" text="Modo demo e modo online são identificados no app." />
       </div>
     </section>
   );
@@ -276,10 +299,10 @@ function ProductSection() {
       <div>
         <p className="text-sm font-black uppercase text-aqua">O produto</p>
         <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">
-          Nao e planilha. E um mapa para sair do aperto.
+          Não é planilha. É um mapa para sair do aperto.
         </h2>
         <p className="mt-5 text-base leading-8 text-ocean/68">
-          O Organiza+ foi pensado para quem esta cansado de contas soltas, parcelas esquecidas e ansiedade na hora de olhar o dinheiro. A pessoa monta sua situacao e recebe uma visao simples do que fazer primeiro.
+          O Organiza+ foi pensado para quem está cansado de contas soltas, parcelas esquecidas e ansiedade na hora de olhar o dinheiro. A pessoa monta sua situação e recebe uma visão simples do que fazer primeiro.
         </p>
       </div>
 
@@ -299,16 +322,16 @@ function ProductSection() {
 function HowItWorks() {
   const steps = [
     {
-      title: "1. Responda o diagnostico",
-      text: "Renda, gastos, dividas, vencimentos e capacidade mensal."
+      title: "1. Responda o diagnóstico",
+      text: "Renda, gastos, dívidas, vencimentos e capacidade mensal."
     },
     {
       title: "2. Veja o mapa",
-      text: "O app organiza tudo em uma arvore financeira visual."
+      text: "O app organiza tudo em uma árvore financeira visual."
     },
     {
       title: "3. Acompanhe o plano",
-      text: "Prioridades, calendario, pagamentos, XP e conquistas."
+      text: "Prioridades, calendário, pagamentos, XP e conquistas."
     }
   ];
 
@@ -318,7 +341,7 @@ function HowItWorks() {
         <div className="max-w-2xl">
           <p className="text-sm font-black uppercase text-aqua">Como funciona</p>
           <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">
-            Em poucos minutos a bagunca vira um caminho.
+            Em poucos minutos a bagunça vira um caminho.
           </h2>
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -340,17 +363,17 @@ function Benefits() {
     <section className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
       <div className="grid gap-8 sm:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <p className="text-sm font-black uppercase text-aqua">Por que chama atencao</p>
+          <p className="text-sm font-black uppercase text-aqua">Por que chama atenção</p>
           <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">
-            Ele vende clareza, progresso e alivio.
+            Ele vende clareza, progresso e alívio.
           </h2>
         </div>
         <div className="grid gap-3">
           <ValueLine icon={Brain} text="Assistente demonstrativo contextual para explicar prioridades." />
-          <ValueLine icon={CalendarDays} text="Calendario basico para vencimentos e parcelas." />
-          <ValueLine icon={ClipboardCheck} text="Plano com tres estrategias: urgencias, menores dividas e juros maiores." />
-          <ValueLine icon={Trophy} text="Gamificacao com XP, niveis, sequencia diaria e conquistas." />
-          <ValueLine icon={ShieldCheck} text="Avisos claros: sem senha bancaria e sem promessa milagrosa." />
+          <ValueLine icon={CalendarDays} text="Calendário básico para vencimentos e parcelas." />
+          <ValueLine icon={ClipboardCheck} text="Plano com três estratégias: urgências, menores dívidas e juros maiores." />
+          <ValueLine icon={Trophy} text="Gamificação com XP, níveis, sequência diária e conquistas." />
+          <ValueLine icon={ShieldCheck} text="Avisos claros: sem senha bancária e sem promessa milagrosa." />
         </div>
       </div>
     </section>
@@ -371,9 +394,9 @@ function Offer() {
     <section id="oferta" className="bg-white py-14 sm:py-20">
       <div className="mx-auto grid max-w-6xl gap-8 px-5 sm:grid-cols-[1fr_0.85fr] sm:px-8">
         <div>
-          <p className="text-sm font-black uppercase text-aqua">Oferta de lancamento</p>
+          <p className="text-sm font-black uppercase text-aqua">Oferta de lançamento</p>
           <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">
-            Organiza+ Dividas por um preco facil de testar.
+            Organiza+ Dívidas por um preço fácil de testar.
           </h2>
           <p className="mt-5 text-base leading-8 text-ocean/68">
             A primeira oferta foi pensada para validar compradores reais com um ticket baixo, alto valor percebido e entrega imediata pelo celular.
@@ -390,28 +413,28 @@ function Offer() {
         </div>
 
         <div className="rounded-[8px] border border-ocean/12 bg-cloud p-5 shadow-soft">
-          <p className="text-sm font-black text-ocean/62">Acesso de lancamento</p>
+          <p className="text-sm font-black text-ocean/62">Acesso de lançamento</p>
           <div className="mt-4 flex items-end gap-2">
             <span className="text-5xl font-black">R$ 37</span>
-            <span className="pb-2 text-sm font-bold text-ocean/58">pagamento unico inicial</span>
+            <span className="pb-2 text-sm font-bold text-ocean/58">pagamento único inicial</span>
           </div>
           <div className="mt-5 space-y-3">
-            <PriceLine text="App Organiza+ Dividas" />
+            <PriceLine text="App Organiza+ Dívidas" />
             <PriceLine text="Mapa financeiro visual" />
-            <PriceLine text="Plano de quitacao" />
-            <PriceLine text="Bônus de lancamento" />
+            <PriceLine text="Plano de quitação" />
+            <PriceLine text="Bônus de lançamento" />
             <PriceLine text="Garantia de 7 dias" />
           </div>
 
           {!checkoutReady && (
             <div className="mt-5 rounded-[8px] border border-amber/30 bg-amber/12 p-3 text-sm leading-6 text-ocean/76">
-              Checkout ainda nao conectado. Por enquanto, o botao abre o app para teste interno.
+              Checkout ainda não conectado. Por enquanto, o botão abre o app para teste interno.
             </div>
           )}
 
           <CtaButton className="mt-5 w-full" />
           <p className="mt-3 text-center text-xs leading-5 text-ocean/54">
-            Oferta sujeita a ajustes antes do lancamento publico.
+            Oferta sujeita a ajustes antes do lançamento público.
           </p>
         </div>
       </div>
@@ -432,7 +455,7 @@ function Faq() {
   return (
     <section className="mx-auto max-w-5xl px-5 py-14 sm:px-8 sm:py-20">
       <p className="text-sm font-black uppercase text-aqua">Perguntas frequentes</p>
-      <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Transparencia antes da venda.</h2>
+      <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">Transparência antes da venda.</h2>
       <div className="mt-8 grid gap-3">
         {faqs.map((faq) => (
           <div key={faq.question} className="rounded-[8px] border border-ocean/10 bg-white p-5 shadow-sm">
@@ -445,7 +468,7 @@ function Faq() {
         <div className="flex gap-3">
           <MessageCircle size={22} className="shrink-0 text-aqua" />
           <p className="text-sm leading-6 text-ocean/72">
-            O Organiza+ oferece organizacao pessoal, estimativas e acompanhamento. Ele nao substitui consultoria financeira, juridica, contabil ou atendimento oficial de credores.
+            O Organiza+ oferece organização pessoal, estimativas e acompanhamento. Ele não substitui consultoria financeira, jurídica, contábil ou atendimento oficial de credores.
           </p>
         </div>
       </div>
