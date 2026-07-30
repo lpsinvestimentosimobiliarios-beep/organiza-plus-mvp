@@ -75,6 +75,14 @@ type InstallPromptEvent = Event & {
   userChoice?: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+type CelebrationEvent = {
+  id: string;
+  kind: "achievement" | "level";
+  title: string;
+  message: string;
+  level?: number;
+};
+
 type AssistantMessage = {
   role: "user" | "assistant";
   text: string;
@@ -102,6 +110,17 @@ const navItems: Array<{ key: ViewKey; label: string; icon: LucideIcon }> = [
   { key: "plan", label: "Plano", icon: ClipboardCheck },
   { key: "assistant", label: "IA", icon: Brain },
   { key: "profile", label: "Perfil", icon: UserRound }
+];
+
+const celebrationStars = [
+  { className: "left-4 top-8", delay: 0, size: 18 },
+  { className: "right-7 top-7", delay: 0.08, size: 22 },
+  { className: "left-10 top-32", delay: 0.16, size: 15 },
+  { className: "right-10 top-36", delay: 0.24, size: 17 },
+  { className: "left-1/2 top-5 -translate-x-1/2", delay: 0.32, size: 20 },
+  { className: "left-8 bottom-20", delay: 0.4, size: 18 },
+  { className: "right-8 bottom-24", delay: 0.48, size: 15 },
+  { className: "left-1/2 bottom-12 -translate-x-1/2", delay: 0.56, size: 22 }
 ];
 
 const strategyCopy: Record<
@@ -291,7 +310,9 @@ export function OrganizaApp() {
   const [authError, setAuthError] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(cloudReady ? "checking" : "local");
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+  const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
   const initialCloudSaveSkipped = useRef(false);
+  const celebrationSnapshot = useRef<{ earnedIds: AchievementId[]; level: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -422,10 +443,53 @@ export function OrganizaApp() {
     );
   }, []);
 
-  const earnedCount = useMemo(
-    () => achievements.filter((achievement) => achievement.isEarned(data)).length,
-    [data]
-  );
+  const journey = useMemo(() => calculateJourney(data), [data]);
+  const earnedAchievements = useMemo(() => achievements.filter((achievement) => achievement.isEarned(data)), [data]);
+  const earnedCount = earnedAchievements.length;
+  const celebrationReady = Boolean(data.profile && data.onboarding.complete);
+
+  useEffect(() => {
+    const earnedIds = earnedAchievements.map((achievement) => achievement.id);
+    const previous = celebrationSnapshot.current;
+
+    if (!celebrationReady) {
+      celebrationSnapshot.current = { earnedIds, level: journey.level };
+      return;
+    }
+
+    if (!previous) {
+      celebrationSnapshot.current = { earnedIds, level: journey.level };
+      return;
+    }
+
+    if (journey.level > previous.level) {
+      setCelebration({
+        id: createId("celebration"),
+        kind: "level",
+        level: journey.level,
+        title: `Nível ${journey.level}!`,
+        message: `Você subiu para ${journey.levelTitle}. Continue juntando XP para desbloquear a próxima fase.`
+      });
+    } else {
+      const newAchievement = earnedAchievements.find((achievement) => !previous.earnedIds.includes(achievement.id));
+      if (newAchievement) {
+        setCelebration({
+          id: createId("celebration"),
+          kind: "achievement",
+          title: newAchievement.title,
+          message: newAchievement.description
+        });
+      }
+    }
+
+    celebrationSnapshot.current = { earnedIds, level: journey.level };
+  }, [celebrationReady, earnedAchievements, journey.level, journey.levelTitle]);
+
+  useEffect(() => {
+    if (!celebration) return;
+    const timeout = window.setTimeout(() => setCelebration(null), 5200);
+    return () => window.clearTimeout(timeout);
+  }, [celebration]);
 
   async function installApp() {
     if (appInstalled) {
@@ -603,8 +667,153 @@ export function OrganizaApp() {
           onInstall={installApp}
           onClose={() => setInstallHelpOpen(false)}
         />
+        <CelebrationOverlay event={celebration} onClose={() => setCelebration(null)} />
       </div>
     </main>
+  );
+}
+
+function CelebrationOverlay({
+  event,
+  onClose
+}: {
+  event: CelebrationEvent | null;
+  onClose: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {event && (
+        <motion.div
+          className="fixed inset-0 z-[70] grid place-items-center bg-ink/68 px-5 py-8 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.section
+            key={event.id}
+            className="relative w-full max-w-[360px] overflow-hidden rounded-[8px] border border-white/60 bg-white p-5 text-center text-ink shadow-soft"
+            initial={{ opacity: 0, y: 26, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.94 }}
+            transition={{ type: "spring", stiffness: 240, damping: 20 }}
+          >
+            <button
+              className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-ink shadow-sm"
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar comemoração"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <motion.div
+                className="absolute -left-14 -top-16 h-36 w-36 rounded-full bg-aqua/20 blur-2xl"
+                animate={{ scale: [1, 1.18, 1], opacity: [0.7, 1, 0.7] }}
+                transition={{ duration: 2.4, repeat: Infinity }}
+              />
+              <motion.div
+                className="absolute -bottom-20 -right-10 h-44 w-44 rounded-full bg-amber/24 blur-2xl"
+                animate={{ scale: [1.1, 0.96, 1.1], opacity: [0.8, 1, 0.8] }}
+                transition={{ duration: 2.8, repeat: Infinity }}
+              />
+              {celebrationStars.map((star) => (
+                <motion.div
+                  key={star.className}
+                  className={cn("absolute text-amber", star.className)}
+                  initial={{ opacity: 0, scale: 0.2, rotate: -18 }}
+                  animate={{
+                    opacity: [0, 1, 1, 0],
+                    scale: [0.2, 1.15, 0.92, 0.2],
+                    y: [10, -8, -16, -22],
+                    rotate: [-18, 12, -8, 18]
+                  }}
+                  transition={{ duration: 1.9, delay: star.delay, repeat: Infinity, repeatDelay: 0.35 }}
+                >
+                  <Sparkles size={star.size} fill="currentColor" />
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="relative z-10">
+              <div className="mx-auto mb-3 grid h-10 w-fit place-items-center rounded-full bg-aqua/10 px-4 text-xs font-black uppercase tracking-[0.12em] text-aqua">
+                {event.kind === "level" ? "Você subiu de nível" : "Conquista desbloqueada"}
+              </div>
+
+              <ClappingMascot />
+
+              <motion.h2
+                className="mt-4 text-3xl font-black leading-tight text-ink"
+                initial={{ scale: 0.92 }}
+                animate={{ scale: [0.92, 1.05, 1] }}
+                transition={{ duration: 0.45, delay: 0.1 }}
+              >
+                {event.title}
+              </motion.h2>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">{event.message}</p>
+
+              {event.kind === "level" && event.level ? (
+                <div className="mx-auto mt-4 w-fit rounded-[8px] bg-leaf px-4 py-2 text-sm font-black text-white">
+                  Nível {event.level}
+                </div>
+              ) : null}
+
+              <AppButton className="mt-5 w-full" onClick={onClose} icon={<ArrowRight size={18} />}>
+                Continuar
+              </AppButton>
+            </div>
+          </motion.section>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function ClappingMascot() {
+  return (
+    <div className="relative mx-auto h-44 w-44">
+      <motion.div
+        className="absolute left-1/2 top-2 h-36 w-32 -translate-x-1/2 rounded-[42%] border-4 border-ink bg-gradient-to-br from-aqua via-leaf to-amber shadow-glow"
+        animate={{ y: [0, -8, 0], rotate: [-1, 1.5, -1] }}
+        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <div className="absolute left-6 top-9 h-5 w-5 rounded-full bg-ink" />
+        <div className="absolute right-6 top-9 h-5 w-5 rounded-full bg-ink" />
+        <motion.div
+          className="absolute left-1/2 top-[4.2rem] h-5 w-12 -translate-x-1/2 rounded-b-full border-b-4 border-ink"
+          animate={{ scaleX: [1, 1.18, 1] }}
+          transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div className="absolute left-8 top-14 h-2 w-2 rounded-full bg-white/85" />
+        <div className="absolute right-8 top-14 h-2 w-2 rounded-full bg-white/85" />
+      </motion.div>
+
+      <motion.div
+        className="absolute left-0 top-20 h-16 w-10 origin-top-right rounded-full border-4 border-ink bg-aqua"
+        animate={{ rotate: [-22, 24, -22], x: [0, 16, 0] }}
+        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute right-0 top-20 h-16 w-10 origin-top-left rounded-full border-4 border-ink bg-leaf"
+        animate={{ rotate: [22, -24, 22], x: [0, -16, 0] }}
+        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute left-1/2 top-[5.9rem] h-8 w-8 -translate-x-1/2 rounded-full border-4 border-ink bg-white"
+        animate={{ scale: [0.82, 1.08, 0.82], opacity: [0.75, 1, 0.75] }}
+        transition={{ duration: 0.46, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute bottom-0 left-10 h-9 w-10 rounded-[8px] border-4 border-ink bg-amber"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute bottom-0 right-10 h-9 w-10 rounded-[8px] border-4 border-ink bg-amber"
+        animate={{ y: [-2, 2, -2] }}
+        transition={{ duration: 0.82, repeat: Infinity, ease: "easeInOut" }}
+      />
+    </div>
   );
 }
 
