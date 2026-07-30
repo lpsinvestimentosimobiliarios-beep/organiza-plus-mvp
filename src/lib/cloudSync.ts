@@ -229,3 +229,18 @@ export async function saveCloudData(userId: string, data: AppData) {
   const finalError = finalResults.find((result) => result.error)?.error;
   if (finalError) throw finalError;
 }
+
+export async function resetCloudData(userId: string) {
+  if (!supabase) return;
+
+  const results = await Promise.all([
+    supabase.from("completed_actions").delete().eq("user_id", userId),
+    supabase.from("payments").delete().eq("user_id", userId),
+    supabase.from("expenses").delete().eq("user_id", userId),
+    supabase.from("debts").delete().eq("user_id", userId),
+    supabase.from("finance_settings").delete().eq("user_id", userId)
+  ]);
+
+  const firstError = results.find((result) => result.error)?.error;
+  if (firstError) throw firstError;
+}

@@ -63,7 +63,7 @@ import { formatMoney, formatMonthYear, formatShortDate, moneyToNumber, percent, 
 import { generateLocalAssistantReply } from "@/lib/localAssistant";
 import { actionCompletedToday, calculateJourney } from "@/lib/gamification";
 import { supabase } from "@/lib/supabase";
-import { cloudReady, loadCloudData, saveCloudData } from "@/lib/cloudSync";
+import { cloudReady, loadCloudData, resetCloudData, saveCloudData } from "@/lib/cloudSync";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type AuthPayload = { name: string; email: string; password: string };
@@ -286,8 +286,26 @@ function cn(...classes: Array<string | false | null | undefined>) {
 }
 
 function readableError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return "Nao foi possivel concluir agora. Confira os dados e tente novamente.";
+  const message = error instanceof Error ? error.message : String(error || "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("invalid login credentials")) {
+    return "E-mail ou senha incorretos. Confira os dados e tente novamente.";
+  }
+
+  if (lower.includes("user already registered") || lower.includes("already registered")) {
+    return "Ja existe uma conta com este e-mail. Use Entrar na conta ou cadastre outro e-mail.";
+  }
+
+  if (lower.includes("password")) {
+    return "A senha precisa ter pelo menos 6 caracteres.";
+  }
+
+  if (lower.includes("email not confirmed")) {
+    return "Conta criada, mas o e-mail ainda precisa ser confirmado antes de entrar.";
+  }
+
+  return message || "Nao foi possivel concluir agora. Confira os dados e tente novamente.";
 }
 
 function appIsStandalone() {
@@ -306,11 +324,13 @@ export function OrganizaApp() {
   const [appInstalled, setAppInstalled] = useState(false);
   const [cloudUserId, setCloudUserId] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(cloudReady ? "checking" : "local");
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
   const initialCloudSaveSkipped = useRef(false);
+  const cloudSaveVersion = useRef(0);
   const celebrationSnapshot = useRef<{ earnedIds: AchievementId[]; level: number } | null>(null);
 
   useEffect(() => {
@@ -383,7 +403,10 @@ export function OrganizaApp() {
       return;
     }
 
+    const saveVersion = cloudSaveVersion.current;
     const timeout = window.setTimeout(async () => {
+      if (saveVersion !== cloudSaveVersion.current) return;
+
       try {
         setSyncStatus("saving");
         await saveCloudData(cloudUserId, data);
@@ -546,6 +569,13 @@ export function OrganizaApp() {
 
       if (authResult.error) throw authResult.error;
 
+      if (mode === "signup" && !authResult.data.session) {
+        setAuthMode("login");
+        setAuthError("Conta criada. Agora entre com seu e-mail e senha para abrir o app.");
+        setSyncStatus("local");
+        return;
+      }
+
       const user = authResult.data.user;
       if (!user) throw new Error("Nao foi possivel abrir a conta agora.");
 
@@ -573,7 +603,55 @@ export function OrganizaApp() {
     }
   }
 
+  async function handleResetData() {
+    const confirmation = cloudSyncEnabled
+      ? "Apagar todos os dados desta conta no Organiza+? Isso zera renda, gastos, dividas, pagamentos, plano e conquistas."
+      : "Apagar todos os dados salvos neste aparelho?";
+
+    if (!window.confirm(confirmation)) return;
+
+    setResetBusy(true);
+    setAuthError("");
+    cloudSaveVersion.current += 1;
+
+    try {
+      if (cloudSyncEnabled && cloudUserId && data.profile) {
+        const resetData = normalizeData({
+          ...emptyData(),
+          profile: data.profile,
+          localModeAcknowledged: true
+        });
+
+        setSyncStatus("saving");
+        await resetCloudData(cloudUserId);
+        await saveCloudData(cloudUserId, resetData);
+        window.localStorage.setItem(storageKey, JSON.stringify(resetData));
+        initialCloudSaveSkipped.current = true;
+        setSyncStatus("online");
+        setView("today");
+        setCelebration(null);
+        updateData(resetData);
+        return;
+      }
+
+      window.localStorage.removeItem(storageKey);
+      setCloudUserId(null);
+      setCloudSyncEnabled(false);
+      setSyncStatus("local");
+      setAuthMode("opening");
+      setView("today");
+      setCelebration(null);
+      updateData(emptyData());
+    } catch (error) {
+      setSyncStatus("error");
+      window.alert(readableError(error));
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   async function handleSignOut() {
+    cloudSaveVersion.current += 1;
     if (supabase) {
       await supabase.auth.signOut().catch(() => undefined);
     }
@@ -649,9 +727,11 @@ export function OrganizaApp() {
                   appInstalled={appInstalled}
                   cloudEnabled={cloudSyncEnabled}
                   syncStatus={syncStatus}
+                  resetBusy={resetBusy}
                   onInstall={installApp}
                   onNavigate={setView}
                   onSignOut={handleSignOut}
+                  onResetData={handleResetData}
                 />
               )}
             </motion.section>
@@ -1630,6 +1710,7 @@ function MapView({
   onNavigate: (view: ViewKey) => void;
 }) {
   const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
+  const [mapResetKey, setMapResetKey] = useState(0);
   const selectedDebt = data.debts.find((debt) => debt.id === selectedDebtId) ?? null;
   const journeySteps = useMemo(() => buildJourneySteps(data), [data]);
   const journeyHeight = Math.max(560, journeySteps.length * 116 + 56);
@@ -1650,20 +1731,48 @@ function MapView({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[8px] border border-ocean/8 bg-[linear-gradient(180deg,#FFFFFF,#EEF7F7)] p-3 shadow-sm">
-        <div className="relative mx-auto w-full max-w-[360px]" style={{ height: journeyHeight }}>
-          <JourneyPathSvg path={journeyPath} height={journeyHeight} />
-          {journeySteps.map((step, index) => (
-            <JourneyStepButton
-              key={step.id}
-              step={step}
-              point={journeyPoints[index]}
-              active={step.debtId === selectedDebtId}
-              onClick={() => {
-                if (step.debtId) setSelectedDebtId(step.debtId);
-              }}
-            />
-          ))}
+      <section className="rounded-[8px] border border-ocean/8 bg-[linear-gradient(180deg,#FFFFFF,#EEF7F7)] p-3 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-bold text-ocean/58">Arraste o caminho para ver todas as fases.</p>
+          <button
+            type="button"
+            onClick={() => setMapResetKey((current) => current + 1)}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-2 text-xs font-black text-ocean shadow-sm"
+          >
+            <RefreshCcw size={14} />
+            Centralizar
+          </button>
+        </div>
+        <div className="relative h-[68vh] min-h-[540px] max-h-[760px] touch-none overflow-hidden rounded-[8px] border border-ocean/6 bg-[radial-gradient(circle_at_50%_0%,rgba(33,183,166,0.18),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.86),rgba(238,247,247,0.94))]">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,51,95,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,51,95,0.035)_1px,transparent_1px)] bg-[size:38px_38px]" />
+          <div className="absolute left-1/2 top-8 -translate-x-1/2">
+            <motion.div
+              key={mapResetKey}
+              drag
+              dragMomentum={false}
+              className="relative cursor-grab active:cursor-grabbing"
+              style={{ width: 320, height: journeyHeight }}
+              initial={{ opacity: 0, y: 0 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24 }}
+            >
+              <JourneyPathSvg path={journeyPath} height={journeyHeight} />
+              {journeySteps.map((step, index) => (
+                <JourneyStepButton
+                  key={step.id}
+                  step={step}
+                  point={journeyPoints[index]}
+                  active={step.debtId === selectedDebtId}
+                  onClick={() => {
+                    if (step.debtId) setSelectedDebtId(step.debtId);
+                  }}
+                />
+              ))}
+            </motion.div>
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit rounded-full bg-white/88 px-3 py-1.5 text-[11px] font-bold text-ocean/58 shadow-sm">
+            Mova para cima, baixo e lados
+          </div>
         </div>
       </section>
 
@@ -1967,9 +2076,11 @@ function ProfileView({
   appInstalled,
   cloudEnabled,
   syncStatus,
+  resetBusy,
   onInstall,
   onNavigate,
-  onSignOut
+  onSignOut,
+  onResetData
 }: {
   data: AppData;
   updateData: (updater: AppData | ((previous: AppData) => AppData)) => void;
@@ -1978,9 +2089,11 @@ function ProfileView({
   appInstalled: boolean;
   cloudEnabled: boolean;
   syncStatus: SyncStatus;
+  resetBusy: boolean;
   onInstall: () => void;
   onNavigate: (view: ViewKey) => void;
   onSignOut: () => void;
+  onResetData: () => void;
 }) {
   const journey = calculateJourney(data);
   const supabaseDescription = cloudEnabled
@@ -2079,15 +2192,11 @@ function ProfileView({
           )}
           <AppButton
             variant="danger"
-            onClick={() => {
-              if (window.confirm("Apagar todos os dados locais do Organiza+ neste aparelho?")) {
-                window.localStorage.removeItem(storageKey);
-                updateData(emptyData());
-              }
-            }}
+            onClick={onResetData}
+            disabled={resetBusy}
             icon={<Trash2 size={18} />}
           >
-            Apagar dados locais
+            {resetBusy ? "Apagando..." : "Apagar tudo e recomeçar"}
           </AppButton>
         </div>
       </section>
